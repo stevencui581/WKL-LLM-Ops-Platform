@@ -1,6 +1,6 @@
 # WKL-LLM运维平台 v0.6 升级测试报告
 
-**主题：正式发布 —— 版本号统一 · 仓库地址统一 · 排版对齐成功案例 · GitHub 上传准备**
+**主题：正式发布 —— 版本号统一 · 仓库地址统一 · 排版对齐成功案例 · 已上传 GitHub 并通过 CI**
 
 | 项 | 内容 |
 | --- | --- |
@@ -30,7 +30,8 @@
 | 仓库一致性守卫 | ✅ **26 项**（版本号 5 组 + 地址 10 组 + 目录名 + 第三方保护） |
 | 发布副本自检 | ✅ **9 项 / 52 个必需文件** |
 | 本地 git 仓库 | ✅ 8 个提交，183 个文件，分支 `main` |
-| **GitHub 上传** | ✅ **183 个文件已上线**，`REMOTE_VERIFY_OK`，本地与远程 HEAD 一致 |
+| **GitHub 上传** | ✅ **182 个文件已上线**，`REMOTE_VERIFY_OK`，本地与远程 HEAD 一致 |
+| **GitHub CI** | ✅ **6/6 job 全绿**（首次推送时为红，见 §6.6~6.8） |
 | 运行时服务 | ✅ `active`，`NRestarts=0` |
 | 推理服务 | ✅ 全程未受影响 |
 
@@ -190,7 +191,7 @@ README.zh-CN.md  ZH = 标题 12 / 代码块 11 / 表格 34
 | 仓库 | <https://github.com/stevencui581/WKL-LLM-Ops-Platform> |
 | 可见性 | **PUBLIC** |
 | 默认分支 | `main` |
-| 远程文件数 | **183**（与本地逐项一致） |
+| 远程文件数 | **182**（与本地逐项一致） |
 | 关键文件核对 | ✅ **68 项全部就位** |
 | 敏感内容检查 | ✅ 无凭据、无虚拟环境、无运行时状态、无历史归档 |
 | 本地 / 远程 HEAD | ✅ `f037a6b` 完全一致 |
@@ -321,6 +322,70 @@ GitHub 对 `.github/workflows/` 下的文件有额外权限要求。已用
 发布副本本身是 git 仓库，`verify_release.py` 原先遍历所有文件查行尾，
 于是把 `.git/objects/pack/*.pack`（二进制）报成 CRLF。
 已加入 `SKIP_PARTS`，并抽出 `_release_files()` 统一跳过 `.git` 与各类缓存。
+
+### 6.6 CI 首次推送即失败：`pip install -e '.[dev]'` 无法构建（**真实缺陷**）
+
+**现象**：上传后 CI 的「质量门禁」job 立即失败，其余 5 个 job 通过。
+
+```
+error: Multiple top-level packages discovered in a flat-layout:
+       ['app', 'static', 'deploy', 'probes']
+```
+
+**根因**：`pyproject.toml` 没有声明包范围，setuptools 的自动发现在扁平布局里
+看到多个顶层目录就拒绝构建。
+
+**为什么本地从未暴露**：本地虚拟环境是用 `pip install -r requirements.txt` 建的，
+**从来没有跑过 `pip install .`**。也就是说这份 `pyproject.toml` 对任何想按标准方式
+安装它的人都是坏的 —— 包括贡献者和文档里写的手动安装路径。
+
+**修复**：显式声明构建后端与包范围：
+
+```toml
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+namespaces = false
+```
+
+**验证方式**：在服务器上新建一次性 venv，**完整复现 CI 的安装步骤** ——
+得到 `Successfully built wkl-llm-ops` / `Successfully installed wkl-llm-ops-0.6.0`，
+并在该 venv 里跑通 ruff / format / mypy / pytest。
+
+### 6.7 lint 工具版本漂移：「本地全绿、CI 变红」
+
+修好构建之后，CI 暴露出**第二个**问题：干净 venv 里的 ruff 报出 2 个错
+（`SIM102` 嵌套 if、`F841` 未使用变量），而本地 ruff 一个都不报。
+
+| 工具 | 本地 venv | CI 干净 venv |
+| --- | --- | --- |
+| ruff | 0.16.9 | **0.16.10** |
+| mypy | 2.3.1 | **2.4.0** |
+
+**根因**：dev 依赖写的是 `ruff>=0.6`、`mypy>=1.11`。ruff 的**检查规则会随小版本增减**，
+CI 装最新版、本地停在旧版时，两边跑的根本不是同一把尺子。
+
+**修复**：静态检查工具**按小版本锁定**（`~=` 允许补丁级更新）：`ruff~=0.16.10`、
+`mypy~=2.4.0`，并同步升级本地 venv。
+
+### 6.8 GitHub Actions 使用已弃用的 Node 20
+
+CI 注解提示 `actions/checkout@v4`、`actions/setup-node@v4` 使用的 Node 20 已弃用。
+核实最新版本后（checkout v7.0.1、setup-python v7.0.0、setup-node v7.0.0）全部升级到 v7。
+
+同时把 `ludeeus/action-shellcheck@master` 改为固定版本 `@2.0.0` ——
+引用可变分支意味着上游随时可以改变 CI 行为，对开源项目的供应链安全不利。
+
+**修复后 CI 结果**：**6/6 job 全绿**（前端渲染冒烟 / 质量门禁 / 行尾与 BOM / 一键脚本 / shellcheck / 前端静态）。
+
+> Dependabot 在仓库建立后几分钟内就自动开了 3 个版本升级 PR，
+> 说明 `.github/dependabot.yml` 配置生效。由于改动已直接进入 main，这 3 个 PR 已关闭。
+
+> **共性教训**：这三个问题本地全都测不出来 —— 因为它们依赖
+> 「干净环境 + 最新工具 + GitHub 侧的限制」。本地门禁再全，也替代不了**在目标环境里真跑一遍**。
 
 ---
 
