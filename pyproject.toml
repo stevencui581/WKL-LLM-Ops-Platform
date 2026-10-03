@@ -32,8 +32,14 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-timeout>=2.3",
     "coverage[toml]>=7.6",
-    "ruff>=0.6",
-    "mypy>=1.11",
+    # 静态检查工具**按小版本锁定**（``~=`` 允许补丁级更新）。
+    #
+    # 为什么不用 ``>=``：ruff 的检查规则会随小版本增减。CI 装最新版、
+    # 本地装在旧版时，就会出现「本地全绿、CI 变红」—— 实测踩过一次：
+    # 本地 ruff 0.16.9 通过，CI 的 0.16.10 报出 SIM102 与 F841 两个错。
+    # 门禁必须两边跑的是同一把尺子。
+    "ruff~=0.16.10",
+    "mypy~=2.4.0",
 ]
 # 文档导出（Markdown → Word）；不带也不影响控制台运行
 docs = ["python-docx>=1.1"]
@@ -102,3 +108,25 @@ fail_under = 0
 
 [tool.coverage.paths]
 source = ["app"]
+
+# ---------------------------------------------------------------- 构建与打包
+#
+# **不加这一段，`pip install .` / `pip install -e .` 会直接失败**：
+#
+#     error: Multiple top-level packages discovered in a flat-layout:
+#            ['app', 'static', 'deploy', 'probes']
+#
+# setuptools 的自动发现在扁平布局里看到多个顶层目录就拒绝构建。
+# 本项目是**应用**而不是库，除 app/ 之外的目录（static / deploy / probes /
+# tools / tests / docs / examples）都不是待分发的包，必须显式排除。
+#
+# 注意：不能改成 ``pip install -r requirements.txt`` 来绕过 ——
+# ``[project.optional-dependencies]`` 的 dev 依赖只能通过 extras 安装，
+# CI 与贡献者文档都用的是 ``pip install -e '.[dev]'``。
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+namespaces = false
