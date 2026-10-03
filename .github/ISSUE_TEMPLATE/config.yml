@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞
+    url: https://github.com/stevencui581/WKL-LLM-Ops-Platform/security/advisories/new
+    about: 请勿通过公开 Issue 报告安全问题，使用私密渠道。
+  - name: 使用问题 / 部署求助
+    url: https://github.com/stevencui581/WKL-LLM-Ops-Platform/discussions
+    about: 配置、部署、环境相关问题请走 Discussions。
+  - name: 文档
+    url: https://github.com/stevencui581/WKL-LLM-Ops-Platform/tree/main/docs
+    about: 安装说明、配置参考、架构设计与常见问题。

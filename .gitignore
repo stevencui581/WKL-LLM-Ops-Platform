@@ -1,0 +1,33 @@
+# ---- 本地部署连接信息：绝不提交 ----
+deploy/host.env
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---- 运行时状态与日志 ----
+state/
+logs/
+*.log
+build/
+
+# ---- 编辑器 / 系统 ----
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ---- Office 临时锁文件 ----
+~$*.docx
+~$*.xlsx
+~$*.pptx

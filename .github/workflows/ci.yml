@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: 质量门禁（Python ${{ matrix.python-version }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      - name: ruff check
+        run: ruff check app tests deploy probes tools
+
+      - name: ruff format --check
+        run: ruff format --check app tests deploy probes tools
+
+      - name: mypy
+        run: mypy app
+
+      - name: pytest
+        run: pytest -q
+
+  line-endings:
+    name: 行尾与 BOM 守卫
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Windows 上开发最容易踩的坑：CRLF 会让 Linux 的 shell 脚本
+      # 报 "set: pipefail: invalid option name"，还会让无扩展名的配置文件
+      # （如 sudoers）解析失败。独立成 job，保证任何平台提交的代码都先过这一关。
+      - name: 检查行尾
+        run: python tools/fix_line_endings.py --check
+
+      - name: 清理并复查 BOM
+        run: |
+          python tools/strip_bom.py
+          git diff --exit-code || {
+            echo "::error::发现带 UTF-8 BOM 的文件，请运行 python tools/strip_bom.py 后提交"
+            exit 1
+          }
+
+  frontend:
+    name: 前端静态自检
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 检查前端（三个页面 / 双语 / 零图片 / 无硬编码框架名）
+        run: python deploy/check_frontend.py
+
+  frontend-render:
+    name: 前端渲染冒烟（真实 app.js + Node 桩）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 静态字符串扫描查不出「渲染函数抛异常」或「字段只在 REST 里有」——
+      # 这两类问题都真实发生过（框架徽标一直显示「识别中…」）。
+      # 本 job 用最小浏览器桩加载**真实的** i18n.js / app.js 并调用渲染函数。
+      - name: 前端渲染冒烟
+        run: node tools/check_frontend_render.js static
+
+  install-scripts:
+    name: 一键脚本自检
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 校验 install.sh / update.sh / uninstall.sh：
+      # 语法、行尾、shebang、中英双语 --help、参数解析
+      - name: 安装脚本自检
+        run: bash probes/check_install_scripts.sh
+
+  shellcheck:
+    name: Shell 脚本检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: ./deploy
+        continue-on-error: true

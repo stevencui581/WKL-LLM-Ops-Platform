@@ -1,0 +1,30 @@
+{
+  "_comment": "目标服务器 /slots 真实返回（2026-10-01 实测，已裁剪重复字段）",
+  "captured_at": "2026-10-01T17:56:00+06:00",
+  "payload": [
+    {"id": 0, "n_ctx": 131072, "speculative": true, "is_processing": false, "id_task": 4547,
+     "n_prompt_tokens": 0, "n_prompt_tokens_processed": 0, "n_prompt_tokens_cache": 0,
+     "params": {"max_tokens": 32768, "speculative.types": "none,draft-mtp"},
+     "next_token": [{"has_next_token": true, "n_decoded": 0}]},
+    {"id": 1, "n_ctx": 131072, "speculative": true, "is_processing": false, "id_task": 4544,
+     "n_prompt_tokens": 0, "n_prompt_tokens_processed": 0, "n_prompt_tokens_cache": 0,
+     "params": {"max_tokens": 65536, "speculative.types": "none,draft-mtp"},
+     "next_token": [{"has_next_token": true, "n_decoded": 0}]},
+    {"id": 2, "n_ctx": 131072, "speculative": true, "is_processing": false, "id_task": 10898,
+     "n_prompt_tokens": 56414, "n_prompt_tokens_processed": 0, "n_prompt_tokens_cache": 0,
+     "params": {"max_tokens": 65536, "speculative.types": "none,draft-mtp"},
+     "next_token": [{"has_next_token": true, "n_decoded": 0}]},
+    {"id": 3, "n_ctx": 131072, "speculative": true, "is_processing": false, "id_task": -1,
+     "n_prompt_tokens": 0, "n_prompt_tokens_processed": 0, "n_prompt_tokens_cache": 0,
+     "params": {"speculative.types": "none,draft-mtp"},
+     "next_token": [{"has_next_token": false, "n_decoded": 0}]},
+    {"id": 4, "n_ctx": 131072, "speculative": true, "is_processing": false, "id_task": -1,
+     "n_prompt_tokens": 0, "n_prompt_tokens_processed": 0, "n_prompt_tokens_cache": 0,
+     "params": {"speculative.types": "none,draft-mtp"},
+     "next_token": [{"has_next_token": false, "n_decoded": 0}]},
+    {"id": 5, "n_ctx": 131072, "speculative": true, "is_processing": false, "id_task": -1,
+     "n_prompt_tokens": 0, "n_prompt_tokens_processed": 0, "n_prompt_tokens_cache": 0,
+     "params": {"speculative.types": "none,draft-mtp"},
+     "next_token": [{"has_next_token": false, "n_decoded": 0}]}
+  ]
+}

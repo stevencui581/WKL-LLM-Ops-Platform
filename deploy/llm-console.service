@@ -1,0 +1,79 @@
+[Unit]
+# 模板：__USER__ / __ROOT__ / __INFER_UNIT__ 由 deploy/install_service.sh 渲染
+Description=WKL-LLM Ops Platform (WKL-LLM运维平台)
+After=network.target __INFER_UNIT__
+Wants=__INFER_UNIT__
+
+# 重启限制必须写在 [Unit] 段：写在 [Service] 会被静默忽略，
+# 而 systemd 默认 10 秒 / 5 次很容易让服务进入 failed 并停止再重启。
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=notify
+# uvicorn 0.54 即使 --workers 1 也会经由 multiprocess 监督进程启动工作进程，
+# READY=1 由工作进程发出；因此必须允许 cgroup 内任意进程通知，
+# 否则 systemd 会报 "reception only permitted for main PID"。
+NotifyAccess=all
+User=__USER__
+UMask=0077
+
+WorkingDirectory=__ROOT__/current
+Environment="LLMCONSOLE_STATE_DIR=__ROOT__/state"
+Environment="LLMCONSOLE_STATIC_DIR=__ROOT__/current/static"
+Environment="LLMCONSOLE_LOG_LEVEL=INFO"
+# 被监控的推理服务单元名 —— 安装时由 __INFER_UNIT__ 渲染。
+# 任意框架的服务名都可以：llm-infer.service / ollama.service / vllm.service …
+Environment="LLMCONSOLE_LLAMA_UNIT=__INFER_UNIT__"
+# 推理服务 HTTP 地址。llama.cpp 默认 8080；vLLM/SGLang 常用 8000；ollama 用 11434。
+# 部署时按实际框架改这一行即可，无需改代码。
+Environment="LLMCONSOLE_LLAMA_BASE_URL=http://127.0.0.1:8080"
+Environment="PYTHONUNBUFFERED=1"
+
+ExecStart=__ROOT__/venv/bin/python -m uvicorn app.main:app \
+    --host 0.0.0.0 --port 8081 --workers 1 \
+    --no-access-log --timeout-graceful-shutdown 30 \
+    --ws-ping-interval 20 --ws-ping-timeout 20
+
+Restart=always
+RestartSec=5
+# 必须小于 systemd 的 TimeoutStopSec(45)，否则 systemd 先 SIGKILL 整个 cgroup，
+# lifespan 里的清理跑不完，会残留 journalctl 子进程。
+TimeoutStopSec=45
+KillMode=control-group
+WatchdogSec=30
+WatchdogSignal=SIGTERM
+
+# ---- 日志 ----
+SyslogIdentifier=llmconsole
+StandardOutput=journal
+StandardError=journal
+
+# ---- 加固（方案 12.7 第 18 条；四个本场景专属例外必须遵守）----
+# 例外四（实测发现）：NoNewPrivileges=yes 会让 setuid 位失效，sudo 根本无法提权，
+# TASK-14 的服务管理功能会永远判定为「未授权」。方案 12.7 把这一条写成「零成本」，
+# 但在本项目里它与服务管理需求直接冲突。这里选择保留服务管理能力，
+# 用「最小化 sudoers 白名单」把风险限制在单个 unit 的四个动作上。
+NoNewPrivileges=no
+ProtectSystem=strict
+ProtectHome=no
+ReadWritePaths=__ROOT__/state __ROOT__/logs
+PrivateTmp=yes
+# 例外一：PrivateDevices=yes 会让 /dev/nvidia* 消失，nvidia-smi 直接报错
+PrivateDevices=no
+# 例外二：ProtectProc=invisible 会让 psutil 看不到 llama-server 进程
+ProtectProc=default
+ProcSubset=all
+# 例外三：读系统 journal 需要 journald socket 与 adm 组
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# 例外五（实测发现）：CapabilityBoundingSet= 清空后，sudo 这个 setuid 程序
+# 无法获得 CAP_SETUID/CAP_SETGID，即使 sudoers 白名单配好了也一定失败。
+# 因此这里不设空的能力界限集，改用最小化 sudoers 白名单约束风险。
+AmbientCapabilities=
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

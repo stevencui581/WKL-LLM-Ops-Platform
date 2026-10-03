@@ -1,0 +1,23 @@
+# 稳定性观察定时器（方案 TASK-24）
+# 模板：__USER__ / __ROOT__ / __INFER_UNIT__ 由 deploy/install_service.sh 渲染
+# 每 12 小时采样一次，写入 state/observation.jsonl，观察 72 小时。
+#
+# 安装：
+#   sudo cp deploy/llm-console-observe.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now llm-console-observe.timer
+#   systemctl list-timers llm-console-observe.timer
+#
+# 卸载：
+#   sudo systemctl disable --now llm-console-observe.timer
+#   sudo rm -f /etc/systemd/system/llm-console-observe.{service,timer}
+
+[Unit]
+Description=LLM Ops Console stability observation sample
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=__ROOT__/current
+ExecStart=__ROOT__/venv/bin/python deploy/observe.py --sample
+Nice=10

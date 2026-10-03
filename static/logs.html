@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>历史服务日志</title>
+<script src="/i18n.js"></script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span class="brand" id="brand" data-i18n="app.brand">WKL-LLM运维平台<span class="ver">v0.6</span></span>
+    <span class="pagechip" data-i18n="lg.title">历史服务日志</span>
+    <span class="spacer"></span>
+    <span class="langctl" id="langCtl"></span>
+    <button class="topbtn" id="backBtn" data-i18n="lg.back">返回控制台</button>
+  </div>
+
+  <div class="panel">
+    <h2 class="center">
+      <span id="headline">—</span>
+    </h2>
+    <div class="body">
+      <div class="coverage" id="coverage"></div>
+
+      <div class="toolbar">
+        <label class="tbl" data-i18n="lg.days">天数</label>
+        <span class="segbtns" id="dayBtns"></span>
+        <span class="grow"></span>
+        <button id="liveBtn" class="follow-off">—</button>
+      </div>
+
+      <div class="toolbar">
+        <select id="levelSel">
+          <option value="" data-i18n-option="log.level.all">全部级别</option>
+          <option value="I" data-i18n-option="log.level.I">I 及以上</option>
+          <option value="W" data-i18n-option="log.level.W">W 及以上</option>
+          <option value="E" data-i18n-option="log.level.E">仅 E</option>
+        </select>
+        <input id="qInput" class="grow" data-i18n-placeholder="log.query_ph" placeholder="关键字过滤">
+        <button id="refreshBtn" data-i18n="al.refresh">刷新</button>
+        <button id="downloadBtn" data-i18n="lg.download">下载 .log</button>
+        <button id="moreBtn" data-i18n="lg.load_more">加载更多</button>
+      </div>
+
+      <div class="livehint" id="liveHint"></div>
+      <div class="logs tall" id="logs"></div>
+      <div class="newlines" id="newLines" hidden></div>
+    </div>
+  </div>
+</div>
+
+<script src="/logs.js"></script>
+<script>I18N.applyI18n();</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "_comment": "目标服务器 /props 与 /v1/models 真实返回（2026-10-01 实测，已裁剪 chat_template）。注意：/props 的 speculative.types 实测为 'none'（只是默认值），真正生效的 'none,draft-mtp' 在 /slots 的每个槽位上。",
+  "props": {
+    "default_generation_settings": {
+      "params": {
+        "max_tokens": -1, "temperature": 1.0, "top_k": 20, "top_p": 0.95, "min_p": 0.05,
+        "speculative.types": "none", "chat_format": "Content-only",
+        "reasoning_format": "none"
+      },
+      "n_ctx": 131072
+    },
+    "total_slots": 6,
+    "model_alias": "/home/llmops/models/qwen3-27b-instruct-q4_k_m.gguf",
+    "model_ftype": "Q4_K - Medium",
+    "model_path": "/home/llmops/models/qwen3-27b-instruct-q4_k_m.gguf",
+    "modalities": {"vision": false, "video": false, "audio": false},
+    "endpoint_slots": true,
+    "endpoint_props": false,
+    "endpoint_metrics": false,
+    "ui": true
+  },
+  "models": {
+    "models": [{"name": "/home/llmops/models/qwen3-27b-instruct-q4_k_m.gguf"}],
+    "object": "list",
+    "data": [{
+      "id": "/home/llmops/models/qwen3-27b-instruct-q4_k_m.gguf",
+      "aliases": ["/home/llmops/models/qwen3-27b-instruct-q4_k_m.gguf"],
+      "object": "model",
+      "owned_by": "llamacpp",
+      "meta": {"vocab_type": 2, "n_vocab": 248320, "n_ctx": 131072, "n_ctx_train": 262144,
+               "n_embd": 5120, "n_params": 27320697856, "size": 16799719424,
+               "ftype": "Q4_K - Medium"}
+    }]
+  }
+}

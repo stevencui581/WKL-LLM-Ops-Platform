@@ -1,0 +1,19 @@
+# /etc/sudoers.d/llm-console
+# 老崔-LLM运维控制台 v0.1 —— 服务管理最小授权（方案 7.6 / TASK-14）
+#
+# 安装：
+#   sudo install -m 0440 -o root -g root deploy/sudoers.llm-console /etc/sudoers.d/llm-console
+#   sudo visudo -c        # 语法校验，必须显示 parsed OK
+#
+# 卸载：
+#   sudo rm -f /etc/sudoers.d/llm-console
+#
+# 模板：__USER__ / __INFER_UNIT__ 由 deploy/install_sudoers.sh 渲染
+# 控制台只会调用：
+#   sudo -n systemctl {restart|stop|start} __INFER_UNIT__
+# 另外允许 reset-failed，用于命中 StartLimit 后恢复（回滚脚本依赖）。
+
+__USER__ ALL=(root) NOPASSWD: /usr/bin/systemctl restart __INFER_UNIT__, \
+                            /usr/bin/systemctl stop __INFER_UNIT__, \
+                            /usr/bin/systemctl start __INFER_UNIT__, \
+                            /usr/bin/systemctl reset-failed __INFER_UNIT__

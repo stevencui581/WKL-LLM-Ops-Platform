@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>告警日志</title>
+<script src="/i18n.js"></script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span class="brand" id="brand" data-i18n="app.brand">WKL-LLM运维平台<span class="ver">v0.6</span></span>
+    <span class="pagechip" data-i18n="al.title">告警日志</span>
+    <span class="spacer"></span>
+    <span class="langctl" id="langCtl"></span>
+    <button class="topbtn" id="backBtn" data-i18n="al.back">返回控制台</button>
+  </div>
+
+  <div class="panel">
+    <h2>
+      <span data-i18n="al.title">告警日志</span>
+      <span class="right" id="subtitle">—</span>
+    </h2>
+    <div class="body">
+      <div class="toolbar">
+        <label class="tbl" for="levelSel" data-i18n="al.filter.level">级别</label>
+        <select id="levelSel">
+          <option value="" data-i18n-option="al.level.all">全部级别</option>
+          <option value="info" data-i18n-option="al.level.info">提示及以上</option>
+          <option value="warning" data-i18n-option="al.level.warning">警告及以上</option>
+          <option value="critical" data-i18n-option="al.level.critical">仅严重</option>
+        </select>
+        <label class="tbl" for="eventSel" data-i18n="al.filter.event">事件</label>
+        <select id="eventSel">
+          <option value="" data-i18n-option="al.event.all">全部事件</option>
+          <option value="raised" data-i18n-option="al.event.raised">仅产生</option>
+          <option value="resolved" data-i18n-option="al.event.resolved">仅恢复</option>
+        </select>
+        <input id="qInput" class="grow" data-i18n-placeholder="log.query_ph" placeholder="关键字过滤">
+        <button id="refreshBtn" data-i18n="al.refresh">刷新</button>
+        <button id="autoBtn" class="follow-off">—</button>
+      </div>
+
+      <div class="table-scroll">
+        <table class="alerts-table">
+          <thead><tr>
+            <th data-i18n="al.col.time">告警日期时间</th>
+            <th data-i18n="al.col.category">告警服务类型</th>
+            <th data-i18n="al.col.name">告警服务名称</th>
+            <th data-i18n="al.col.level">级别</th>
+            <th data-i18n="al.col.message">内容</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <div class="meta" style="margin-top:10px" id="foot"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/alerts.js"></script>
+<script>I18N.applyI18n();</script>
+</body>
+</html>

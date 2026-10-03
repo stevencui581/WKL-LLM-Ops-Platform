@@ -1,0 +1,18 @@
+# 目标服务器 llm-infer.service 真实日志样本（脱敏后原样保留字段）
+# 依据 V4.1 方案 4.3 与附录 A；用于 tests/fixtures 回归。
+# 行首 2990.36.159.181 是「运行分钟.秒.毫秒.微秒」，不是 IP 也不是时间。
+2026-10-01T17:04:06+06:00 llm-host llama-server[1261]: 2990.32.236.058 I slot print_timing: id  2 | task 10637 | n_gen =    413, tg =  68.49 t/s, tg_3s =  66.09 t/s
+2026-10-01T17:04:09+06:00 llm-host llama-server[1261]: 2990.35.253.677 I slot print_timing: id  2 | task 10637 | n_gen =    614, tg =  67.86 t/s, tg_3s =  66.61 t/s
+2026-10-01T17:04:10+06:00 llm-host llama-server[1261]: 2990.36.159.120 I slot print_timing: id  2 | task 10637 | prompt eval time =    1155.96 ms /    65 tokens (   17.78 ms per token,    56.23 tokens per second)
+2026-10-01T17:04:10+06:00 llm-host llama-server[1261]: 2990.36.159.127 I slot print_timing: id  2 | task 10637 |        eval time =    9938.59 ms /   679 tokens (   14.66 ms per token,    68.22 tokens per second)
+2026-10-01T17:04:10+06:00 llm-host llama-server[1261]: 2990.36.159.128 I slot print_timing: id  2 | task 10637 |       total time =   11094.56 ms /   744 tokens
+2026-10-01T17:04:10+06:00 llm-host llama-server[1261]: 2990.36.159.130 I slot print_timing: id  2 | task 10637 |    graphs reused =      10250
+2026-10-01T17:04:10+06:00 llm-host llama-server[1261]: 2990.36.159.181 I slot print_timing: id  2 | task 10637 | draft acceptance = 0.81783 (  422 accepted /   516 generated), mean len =  2.64
+2026-10-01T17:04:10+06:00 llm-host llama-server[1261]: 2990.36.162.558 I slot      release: id  2 | task 10637 | stop processing: n_tokens = 56160, truncated = 0
+2026-10-01T17:19:20+06:00 llm-host llama-server[1261]: 3005.46.788.822 I slot get_availabl: id  2 | task -1 | selected slot by LCP similarity, f_sim_best = 0.998 (> 0.100 thold), f_keep = 1.000
+2026-10-01T17:19:20+06:00 llm-host llama-server[1261]: 3005.46.791.097 I slot launch_slot_: id  2 | task 10898 | processing task, is_child = 0
+2026-10-01T17:19:24+06:00 llm-host llama-server[1261]: 3005.50.969.423 W srv          stop: cancel task, id_task = 10898
+2026-10-01T17:19:24+06:00 llm-host llama-server[1261]: 3005.51.007.185 I slot      release: id  2 | task 10898 | stop processing: n_tokens = 56414, truncated = 0
+2026-10-01T18:02:11+06:00 llm-host llama-server[1261]: 3200.11.001.001 I slot      release: id  1 | task 11001 | stop processing: n_tokens = 130900, truncated = 1
+2026-10-01T18:05:00+06:00 llm-host llama-server[1261]: 3203.00.000.000 I srv  run: instance name=qwen3.8-27B exited with status 0
+2026-10-01T18:05:01+06:00 llm-host llama-server[1261]: 3203.01.000.000 I srv  llama_server: model loaded

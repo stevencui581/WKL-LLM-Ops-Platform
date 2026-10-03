@@ -1,0 +1,11 @@
+[Unit]
+Description=Sample LLM Ops Console stability every 12 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=12h
+AccuracySec=1min
+Unit=llm-console-observe.service
+
+[Install]
+WantedBy=timers.target

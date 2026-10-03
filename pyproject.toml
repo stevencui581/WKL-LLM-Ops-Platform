@@ -1,0 +1,104 @@
+[project]
+name = "wkl-llm-ops"
+version = "0.6.0"
+description = "WKL-LLM运维平台 —— 面向本地大模型推理服务的轻量运维控制台"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+keywords = [
+    "llm", "llmops", "observability", "monitoring",
+    "llama.cpp", "ollama", "vllm", "sglang", "fastapi",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "psutil>=5.9",
+    "httpx>=0.27",
+    "pydantic-settings>=2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-timeout>=2.3",
+    "coverage[toml]>=7.6",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+# 文档导出（Markdown → Word）；不带也不影响控制台运行
+docs = ["python-docx>=1.1"]
+# 远程部署辅助脚本（deploy/remote.py、upload.py、sync_from_host.py）
+remote = ["paramiko>=3.4"]
+
+[project.urls]
+Homepage = "https://github.com/stevencui581/WKL-LLM-Ops-Platform"
+Documentation = "https://github.com/stevencui581/WKL-LLM-Ops-Platform/tree/main/docs"
+Issues = "https://github.com/stevencui581/WKL-LLM-Ops-Platform/issues"
+Changelog = "https://github.com/stevencui581/WKL-LLM-Ops-Platform/blob/main/CHANGELOG.md"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+exclude = ["build", ".venv", "static"]
+
+[tool.ruff.lint]
+# ASYNC 规则集可在静态检查阶段拦截「async 函数里调用 subprocess.run / time.sleep」
+# 这类运行时完全不可见、只表现为偶发卡顿的错误（方案 12.7 第 1 条、13.6）
+select = ["E", "F", "W", "I", "UP", "B", "ASYNC", "C4", "SIM"]
+ignore = ["E501", "B008", "SIM108"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "B011"]
+# 运维脚本（探针/部署）天然是"打开-读取-丢弃"的短命脚本：
+# 强制 with 上下文管理器只会增加噪音，不带来实际收益（文件句柄随进程退出释放）。
+# 但**真正的**问题（未使用变量 F841、歧义变量名 E741）仍然照常检查。
+"probes/*" = ["SIM115"]
+"deploy/*" = ["SIM115"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["psutil.*", "uvicorn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+timeout = 30
+addopts = "-q --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/main.py", "*/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+# 覆盖率是发现「哪些代码没被测到」的工具，不是「测试有多好」的指标；
+# 门禁只卡核心模块（collectors / services），见方案 13.6
+fail_under = 0
+
+[tool.coverage.paths]
+source = ["app"]

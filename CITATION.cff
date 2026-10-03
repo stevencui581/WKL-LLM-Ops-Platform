@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: "WKL-LLM运维平台 (WKL-LLM Ops Platform)"
+message: "如果本软件对你的工作有帮助，欢迎引用。"
+type: software
+authors:
+  - name: "WKL-LLM Ops Platform contributors"
+repository-code: "https://github.com/stevencui581/WKL-LLM-Ops-Platform"
+url: "https://github.com/stevencui581/WKL-LLM-Ops-Platform"
+license: MIT
+abstract: >-
+  面向本地大模型推理服务（llama.cpp / Ollama / vLLM / SGLang）的轻量运维控制台。
+  单进程部署、零前端构建、零图片资源，所有硬件与软件栈信息均在运行期自动探测。
+keywords:
+  - LLM
+  - LLMOps
+  - observability
+  - monitoring
+  - llama.cpp
+  - ollama
+  - vllm
+  - sglang
+  - FastAPI
+version: "0.6.0"
+date-released: "2026-10-04"

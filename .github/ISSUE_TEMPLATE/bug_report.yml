@@ -1,0 +1,95 @@
+name: 缺陷报告
+description: 报告一个可复现的缺陷
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！为了能快速定位问题，请尽量填全下面的信息。
+
+        **安全漏洞请不要用这个模板** —— 请走
+        [安全策略](https://github.com/stevencui581/WKL-LLM-Ops-Platform/blob/main/SECURITY.md)
+        里的私密渠道。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已经搜索过现有 Issue，确认这不是重复问题
+          required: true
+        - label: 我使用的是 v0.6 或更新的版本
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象描述
+      description: 发生了什么？你期望发生什么？
+      placeholder: |
+        页面上 KV 余量一直显示 "—"，但推理服务本身是正常的。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 启动 llama-server ...
+        2. 打开控制台 ...
+        3. 点击「历史服务日志」，选 30 天
+        4. 看到 ...
+    validations:
+      required: true
+
+  - type: input
+    id: framework
+    attributes:
+      label: 推理框架与版本
+      description: 页面顶部「框架」徽标上显示的值，鼠标悬停可看到完整信息
+      placeholder: "llama.cpp b11146"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Ubuntu 24.04
+        - Ubuntu 22.04
+        - Debian 12
+        - CentOS / RHEL / Rocky
+        - openEuler / 麒麟 / 统信
+        - 其他 Linux
+        - 非 Linux
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python 版本
+      description: 输出 `python3 -V`
+      placeholder: "Python 3.12.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志
+      description: |
+        `journalctl -u llm-console.service -n 100 --no-pager` 的输出。
+        **请先删掉其中的服务器地址、用户名等敏感信息。**
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: |
+        截图、`curl http://127.0.0.1:8081/api/overview` 的输出、或其它线索。
+        框架识别问题请附上 `./venv/bin/python probes/diag_framework_chip.py` 的结果。

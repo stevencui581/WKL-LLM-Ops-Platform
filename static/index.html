@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WKL-LLM运维平台</title>
+<!-- i18n.js 必须**同步**加载：在首帧渲染前完成语言判定与替换，避免中英闪烁 -->
+<script src="/i18n.js"></script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 顶部状态栏：左侧产品标识（纯文本，无 Logo 图片），右侧状态与时效 -->
+  <div class="topbar">
+    <span class="brand" id="brand" data-i18n="app.brand">WKL-LLM运维平台<span class="ver">v0.6</span></span>
+    <span class="state ok" id="state"><span class="dot"></span><span id="stateText" data-i18n="state.connecting">连接中</span></span>
+    <!-- 标识1（R1）：算力卡信息 —— 全部来自运行时探测 -->
+    <span class="chip" id="accelBadge"><span class="chip-k" data-i18n="top.accel">算力卡</span><b id="accelText">—</b><span class="tp" id="accelTp"></span></span>
+    <!-- 标识2（R2）：当前加载的大模型全称 -->
+    <span class="chip" id="modelChip"><span class="chip-k" data-i18n="top.model">模型</span><b id="modelFull">—</b></span>
+    <!-- v0.5：推理框架与版本（llama.cpp / ollama / vLLM / SGLang，全部运行时自动探测） -->
+    <span class="chip" id="fwChip"><span class="chip-k" data-i18n="top.framework">框架</span><b id="fwText" data-i18n="top.fw_detecting">识别中…</b></span>
+    <span class="spacer"></span>
+    <!-- 标识4（v0.4.3 R12）：中/英切换，默认跟随浏览器语言 -->
+    <span class="langctl" id="langCtl"></span>
+    <!-- 标识3（v0.4.3 R11）：历史服务日志入口 -->
+    <button class="topbtn" id="logHistoryBtn" data-i18n="log.history_btn">历史服务日志</button>
+    <!-- 状态区（R9）：2 行 1 列 -->
+    <div class="meta2col">
+      <span class="meta"><span data-i18n="top.uptime">服务运行</span> <b id="uptime">—</b> · <span id="refreshNote" data-i18n="top.refresh_note">数据每 2 秒刷新</span></span>
+      <span class="meta"><span data-i18n="top.last_refresh">最后刷新</span> <b id="lastRefresh">—</b></span>
+    </div>
+  </div>
+
+  <div class="banner" id="banner"></div>
+
+  <!-- 第一排 KPI：模型服务层 -->
+  <div class="row" id="row1">
+    <div class="card c-green">
+      <div class="label" data-i18n="card.decode">实时解码速率</div>
+      <div class="value" id="decode">—<span class="unit">tok/s</span></div>
+      <canvas class="spark" id="sparkDecode" height="30"></canvas>
+      <div class="sub" id="decodeSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-blue">
+      <div class="label" data-i18n="card.prefill">上下文填充速度</div>
+      <div class="value" id="prefill">—<span class="unit">tok/s</span></div>
+      <canvas class="spark" id="sparkPrefill" height="30"></canvas>
+      <div class="sub" id="prefillSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-purple">
+      <div class="label" data-i18n="card.mtp">MTP 接受率</div>
+      <div class="value" id="mtp">—<span class="unit">%</span></div>
+      <canvas class="spark" id="sparkMtp" height="30"></canvas>
+      <div class="sub" id="mtpSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-cyan">
+      <div class="label" data-i18n="card.processing">生成中请求</div>
+      <div class="value" id="processing">—<span class="unit">/ 6</span></div>
+      <div class="sub" id="processingSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-orange">
+      <div class="label" data-i18n="card.vram">显存占用</div>
+      <div class="value" id="vram">—<span class="unit">GiB</span></div>
+      <div class="bar"><i id="vramBar" style="width:0%"></i></div>
+      <div class="sub" id="vramSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+  </div>
+
+  <!-- 第二排：硬件层（卡数由后端实测决定，前端动态渲染） -->
+  <div class="row" id="row2">
+    <div class="card c-cyan">
+      <div class="label" data-i18n="card.util">GPU 利用率</div>
+      <div class="value" id="util">—<span class="unit">%</span></div>
+      <div class="dual" id="utilDual"></div>
+      <div class="sub" id="utilSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-orange">
+      <div class="label" data-i18n="card.temp">GPU 温度</div>
+      <div class="value" id="temp">—<span class="unit">°C</span></div>
+      <div class="dual" id="tempDual"></div>
+      <div class="sub" id="tempSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-blue">
+      <div class="label" data-i18n="card.power">GPU 功耗</div>
+      <div class="value" id="power">—<span class="unit">W</span></div>
+      <div class="dual" id="powerDual"></div>
+      <div class="sub" id="powerSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-green">
+      <div class="label" data-i18n="card.gen">累计生成 token</div>
+      <div class="value" id="genTotal">—</div>
+      <div class="sub" id="genSub" data-i18n="sub.waiting">等待数据…</div>
+    </div>
+    <div class="card c-purple">
+      <div class="label" data-i18n="card.bw">显存带宽（近似）</div>
+      <div class="value" id="bw">—<span class="unit">GB/s</span></div>
+      <div class="dual" id="bwDual"></div>
+      <div class="sub" id="bwSub" data-i18n="sub.bw_unknown">峰值带宽未知（型号未收录）</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <!-- 推理槽位 · KV 缓存占用 -->
+    <div class="panel">
+      <h2><span data-i18n="kv.title">推理槽位 · KV 缓存占用</span> <span class="right" id="kvRight">—</span></h2>
+      <div class="body">
+        <div class="kvhead">
+          <span class="big" id="kvPct">—%</span>
+          <span class="note" id="kvNote">—</span>
+        </div>
+        <div class="kvbar" id="kvBar"><i style="width:0%"></i></div>
+
+        <div class="badges" id="badges"></div>
+
+        <div class="kvhead" style="margin-top:2px">
+          <span class="note" id="kvRemain">—</span>
+        </div>
+
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th data-i18n="tbl.slot">槽位</th>
+              <th data-i18n="tbl.state">状态</th>
+              <th data-i18n="tbl.kv_used">KV 已用</th>
+              <th data-i18n="tbl.ctx">上下文容量</th>
+              <th data-i18n="tbl.source">来源</th>
+            </tr></thead>
+            <tbody id="slotRows"><tr><td colspan="5" class="empty" data-i18n="sub.waiting">等待数据…</td></tr></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="label" style="color:var(--text-dim);font-size:12.5px;margin-bottom:6px" data-i18n="recent.title">最近请求明细</div>
+          <div class="recent" id="recent"></div>
+        </div>
+
+        <div class="sub" style="margin-top:10px;color:var(--text-mute);font-size:11.5px" data-i18n="kv.hint">
+          KV 只增不减：容量到 100% 时才「清空」释放；空闲槽位会存入 prompt cache，新任务时复用。
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <!-- 告警面板（标识1：标题右侧放「告警日志」入口） -->
+      <div class="panel">
+        <h2><span data-i18n="alerts.title">告警</span>
+          <button class="topbtn sm" id="alertLogBtn" data-i18n="alerts.log_btn">告警日志</button>
+          <span class="right" id="alertCount">0</span>
+        </h2>
+        <div class="body"><div class="alerts" id="alerts"><div class="empty" data-i18n="alerts.empty">当前无告警</div></div></div>
+      </div>
+
+      <!-- 系统面板（R6：1 列 6 行 → 2 列 3 行） -->
+      <div class="panel">
+        <h2 data-i18n="sys.title">系统资源</h2>
+        <div class="body">
+          <div class="sysgrid" id="sysgrid"></div>
+          <div class="meta" style="margin-top:8px" id="selfInfo"></div>
+        </div>
+      </div>
+
+      <!-- R3：硬件与运行环境（全部运行时探测，按厂家条件显示） -->
+      <div class="panel" id="hwPanel">
+        <h2><span data-i18n="hw.title">硬件与运行环境</span> <span class="right" id="hwRight" data-i18n="hw.probing">探测中…</span></h2>
+        <div class="body" id="hwBody">
+          <div class="empty" data-i18n="hw.probing">探测中…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 服务日志 -->
+  <div class="panel">
+    <h2><span data-i18n="log.title">服务日志</span> <span class="right" id="logRight">—</span></h2>
+    <div class="body">
+      <div class="toolbar">
+        <select id="logLevel">
+          <option value="" data-i18n-option="log.level.all">全部级别</option>
+          <option value="I" data-i18n-option="log.level.I">I 及以上</option>
+          <option value="W" data-i18n-option="log.level.W">W 及以上</option>
+          <option value="E" data-i18n-option="log.level.E">仅 E</option>
+        </select>
+        <input id="logQuery" class="grow" data-i18n-placeholder="log.query_ph" placeholder="关键字过滤">
+        <button id="followBtn" class="follow-on">—</button>
+        <button id="clearBtn" data-i18n="log.clear">清空</button>
+      </div>
+      <div class="logs" id="logs"></div>
+    </div>
+  </div>
+
+  <!-- 底部（R7）：仅保留开发者信息 -->
+  <div class="footer">
+    <span class="spacer"></span>
+    <span class="dev" id="devInfo" data-i18n="footer.dev">开发者信息：WKL-LLM运维平台　　开发日期：2026.10.01</span>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>I18N.applyI18n();</script>
+</body>
+</html>
