@@ -311,6 +311,7 @@ url.https://steven-sways@github.com/.insteadof=https://github.com/
 | **发布副本（待推送）** | `WKL-LLM-Ops-Platform/` |
 | 本报告 | `docs/WKL-LLM运维平台_v0.6升级测试报告.md` / `.docx` |
 | 术语对照表 | `docs/GLOSSARY.md` |
+| 配置档案（按框架） | `examples/{llama-cpp,ollama,vllm,sglang}.env` + `examples/README.md` |
 | 版本升级工具 | `tools/bump_version.py` |
 | 地址统一工具 | `tools/fix_repo_url.py` / `tools/fix_repo_dirname.py` |
 | 一致性守卫 | `tests/test_repo_consistency.py` |
