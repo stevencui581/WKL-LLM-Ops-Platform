@@ -217,6 +217,7 @@ WKL-LLM-Ops-Platform/
 │   │   └── alerts.py       告警引擎（含自动恢复）
 │   ├── collectors/         各数据源采集器（槽位 / 指标 / 硬件 / 日志）
 │   └── routes/             REST 与 WebSocket 端点
+├── examples/               按框架分好的现成 .env 档案
 ├── static/                 前端（原生 JS，无构建、无图片）
 ├── tests/                  单元测试与守卫
 ├── probes/                 线上验收与诊断探针

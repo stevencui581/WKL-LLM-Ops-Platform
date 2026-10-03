@@ -376,7 +376,14 @@ sudo dnf install -y gcc python3-devel               # RHEL family
 
 ### 4.5 Write the configuration
 
-Create `.env` in the project root:
+Ready-made profiles per framework (llama.cpp / Ollama / vLLM / SGLang) live in
+[`examples/`](../examples/README.md) — copy one and edit the unit name:
+
+```bash
+cp examples/llama-cpp.env .env
+```
+
+Or create `.env` by hand:
 
 ```bash
 cat > .env <<'EOF'

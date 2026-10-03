@@ -230,6 +230,7 @@ WKL-LLM-Ops-Platform/
 │   │   └── alerts.py       Alert engine with auto-resolution
 │   ├── collectors/         Per-source collectors (slots / metrics / hardware / logs)
 │   └── routes/             REST and WebSocket endpoints
+├── examples/               Ready-to-use .env profiles per framework
 ├── static/                 Frontend (plain JS, no build, no images)
 ├── tests/                  Unit tests and guards
 ├── probes/                 Live acceptance and diagnostics

@@ -372,7 +372,14 @@ sudo dnf install -y gcc python3-devel               # RHEL 系
 
 ### 4.5 写入配置
 
-在项目根目录创建 `.env`：
+按框架分好的现成档案（llama.cpp / Ollama / vLLM / SGLang）在
+[`examples/`](../examples/README.md) —— 复制一份、改掉单元名即可：
+
+```bash
+cp examples/llama-cpp.env .env
+```
+
+也可以手写 `.env`：
 
 ```bash
 cat > .env <<'EOF'

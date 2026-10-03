@@ -26,7 +26,10 @@ DOCS = ROOT / "docs"
 
 #: **单文件双语**的文档：本身一张表两列，不需要 .zh-CN 对应文件。
 #: 明确列出而不是默默放过 —— 新增文档时要么成对，要么在这里说明原因。
-SINGLE_FILE_BILINGUAL = ("docs/GLOSSARY.md",)
+SINGLE_FILE_BILINGUAL = (
+    "docs/GLOSSARY.md",
+    "examples/README.md",
+)
 
 #: 必须成对存在的文档（相对仓库根）
 BILINGUAL_PAIRS = (
