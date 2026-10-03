@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | 1 | 升级到 v0.6，统一全项目版本号 | ✅ 代码 / 文档 / 脚本全部统一；新增版本一致性守卫 |
 | 2 | 统一 GitHub 地址为正式仓库 | ✅ **76 处**替换；含克隆目录名同步；新增地址一致性守卫 |
-| 3 | 上传到 GitHub + 按成功案例优化排版 | ⏳ 仓库与提交已就绪，**待 SSH 公钥添加到你的账号后一条命令推送**；排版已完成 |
+| 3 | 上传到 GitHub + 按成功案例优化排版 | ✅ **已上传** —— 183 个文件，<https://github.com/stevencui581/WKL-LLM-Ops-Platform> |
 
 | 指标 | 结果 |
 | --- | --- |
@@ -29,7 +29,8 @@
 | 端到端验收 | ✅ **10/10 OK** |
 | 仓库一致性守卫 | ✅ **26 项**（版本号 5 组 + 地址 10 组 + 目录名 + 第三方保护） |
 | 发布副本自检 | ✅ **9 项 / 52 个必需文件** |
-| 本地 git 仓库 | ✅ 已提交，177 个文件，分支 `main` |
+| 本地 git 仓库 | ✅ 8 个提交，183 个文件，分支 `main` |
+| **GitHub 上传** | ✅ **183 个文件已上线**，`REMOTE_VERIFY_OK`，本地与远程 HEAD 一致 |
 | 运行时服务 | ✅ `active`，`NRestarts=0` |
 | 推理服务 | ✅ 全程未受影响 |
 
@@ -180,23 +181,26 @@ README.zh-CN.md  ZH = 标题 12 / 代码块 11 / 表格 34
 
 ---
 
-## 五、GitHub 上传：已完成的部分与阻塞点
+## 五、GitHub 上传：结果与过程
 
-### 5.1 已完成
+### 5.1 最终结果
 
-| 项 | 状态 |
+| 项 | 结果 |
 | --- | --- |
-| 发布副本 `WKL-LLM-Ops-Platform/` | ✅ 177 个文件，`RELEASE_CHECK_OK` |
-| 目录名与仓库名对齐 | ✅ |
-| 本地 git 仓库初始化 | ✅ 分支 `main` |
-| 首次提交 | ✅ `73b7c4a`（177 个文件） |
-| 远程地址配置 | ✅ `git@github.com:stevencui581/WKL-LLM-Ops-Platform.git` |
-| SSH 密钥生成 | ✅ `~/.ssh/id_ed25519_wkl`（ed25519） |
-| SSH 连通性 | ✅ 握手成功，仅密钥未注册 |
+| 仓库 | <https://github.com/stevencui581/WKL-LLM-Ops-Platform> |
+| 可见性 | **PUBLIC** |
+| 默认分支 | `main` |
+| 远程文件数 | **183**（与本地逐项一致） |
+| 关键文件核对 | ✅ **68 项全部就位** |
+| 敏感内容检查 | ✅ 无凭据、无虚拟环境、无运行时状态、无历史归档 |
+| 本地 / 远程 HEAD | ✅ `f037a6b` 完全一致 |
+| Topics | ✅ 12 个（llm / llama-cpp / ollama / vllm / sglang / fastapi / systemd / bilingual …） |
+| 页面可达性 | ✅ 仓库页、中英 README、`install.sh` 均 HTTP 200 |
+| 验收工具 | `tools/verify_remote.py` → `REMOTE_VERIFY_OK` |
 
-### 5.2 阻塞点：GitHub 已废弃密码认证
+### 5.2 凭据：密码认证已废弃，改用 OAuth 设备流
 
-用户提供的是账号密码。**我实测验证了它不能用**（不是照搬文档）：
+用户最初提供的是**账号密码**。我实测验证了它不能用（不是照搬文档）：
 
 ```
 === 用账号密码访问 GitHub API ===
@@ -205,19 +209,33 @@ README.zh-CN.md  ZH = 标题 12 / 代码块 11 / 表格 34
   remote: Repository not found
 ```
 
-GitHub 于 **2021 年 8 月移除密码认证**，`git push` 必须使用 SSH key 或 Personal Access Token。
+GitHub 于 **2021 年 8 月移除密码认证**。
 
-**用户已选择 SSH key 方式**，公钥已生成并提供给用户：
+我依次排查了全部凭据路径，并对每一条都给出了确定结论：
 
-```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF61kM9TaAMayUBnZ748xfsjR6rQMIcHxYwSWWBHqjXz stevencui581@gmail.com
-```
+| 路径 | 结果 |
+| --- | --- |
+| 账号密码 | ❌ API 返回 **401** |
+| SSH 公钥 | ❌ 已生成但未添加到账号（两轮未完成） |
+| Windows 凭据管理器 | ❌ 无 GitHub 条目 |
+| `~/.git-credentials` | ❌ 不存在 |
+| **OAuth 设备流** | ✅ **成功** |
 
-添加到 <https://github.com/settings/keys> 后，执行 `git push -u origin main` 即可完成。
+**最终采用 OAuth 设备流**：用户只需在 <https://github.com/login/device> 输入一个 8 位代码，
+不需要管理任何密钥文件。为此临时下载了官方 `gh` CLI（v2.102.0 便携版，无需安装）。
 
-### 5.3 过程中发现的两个环境问题
+### 5.3 上传过程中遇到的三个真实问题
 
-**① 全局 git 配置会破坏推送到本账号**
+**① 仓库并不存在**
+
+用户认为仓库已创建，但 `gh repo view` 与账号仓库列表都确认它**不存在**
+（`public_repos: 0`，GraphQL 报 `Could not resolve to a Repository`）。
+已用 `gh repo create` 创建为 PUBLIC 仓库。
+
+> 这一点值得记录：如果我没核实就推送，会得到 `Repository not found`，
+> 而且很容易误判成"权限问题"去反复折腾凭据。
+
+**② 全局 git 改写规则导致凭据助手匹配失败**
 
 本机 `~/.gitconfig` 中存在：
 
@@ -225,16 +243,30 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF61kM9TaAMayUBnZ748xfsjR6rQMIcHxYwSWWBHqjXz
 url.https://steven-sways@github.com/.insteadof=https://github.com/
 ```
 
-它会把**所有** `https://github.com/...` 地址改写成以 `steven-sways` 用户认证 ——
-与目标账号 `stevencui581` 不符。**未擅自修改全局配置**，只在本仓库改用 SSH 形式绕过
-（`ssh://git@github.com:` 形式仍会被另一条规则改写，因此使用 scp 形式的
-`git@github.com:...`）。
+它会把**所有** `https://github.com/...` 改写成 `steven-sways@github.com`；而 `gh` 写入的
+凭据助手是按 `https://github.com` 精确匹配的 —— 两者对不上，推送会退化成"要密码"然后失败。
 
-> 若本机还有其它仓库要推送到 `stevencui581`，同样会踩到这条规则。
+**未改动用户的全局配置**，而是通过 `GIT_CONFIG_GLOBAL` 指向一份临时配置
+（只含 `gh` 凭据助手、不含改写规则）完成推送。
 
-**② 安全提醒：账号密码已在对话中明文出现**
+**③ OAuth 令牌缺少 `workflow` 权限**
 
-虽然该密码无法用于 Git 推送，仍建议立即更换：<https://github.com/settings/security>
+第一次推送被拒绝：
+
+```
+! [remote rejected] main -> main (refusing to allow an OAuth App to create or update
+  workflow `.github/workflows/ci.yml` without `workflow` scope)
+```
+
+GitHub 对 `.github/workflows/` 下的文件有额外权限要求。已用
+`gh auth refresh -h github.com -s workflow` 补充授权后推送成功。
+
+### 5.4 安全提醒
+
+**账号密码已在对话中明文出现**，虽然它无法用于 Git 推送，仍建议立即更换：
+<https://github.com/settings/security>
+
+**本次 OAuth 授权可随时撤销**：<https://github.com/settings/applications>
 
 ---
 
@@ -296,10 +328,10 @@ url.https://steven-sways@github.com/.insteadof=https://github.com/
 
 | # | 项 | 性质 | 说明 |
 | --- | --- | --- | --- |
-| L1 | **推送尚未完成** | 阻塞 | 等 SSH 公钥添加到 GitHub 账号 |
+
 | L2 | 一键脚本未在全新机器上端到端验证 | 验证范围 | 幂等路径已在真实环境验证；首次安装路径依赖全新环境 |
 | L3 | 多框架支持仍只在 llama.cpp 上做过真机验证 | 覆盖度 | Ollama / vLLM / SGLang 由假响应单测覆盖（25 项） |
-| L4 | 全局 git URL 改写规则未清理 | 环境 | 只在本仓库绕过；是否清理全局配置需用户决定 |
+| L3 | 全局 git URL 改写规则未清理 | 环境 | 本次用临时配置绕过；是否清理本机全局配置需用户决定 |
 | L5 | 72 小时稳定性观察未满 | 时间性 | 部署以来 0 重启、0 readiness 失败 |
 
 ---
@@ -320,7 +352,7 @@ url.https://steven-sways@github.com/.insteadof=https://github.com/
 
 ## 九、结论
 
-**第 1、2 步完成并通过全部验收；第 3 步已完成除推送外的全部准备。**
+**三步全部完成：版本号统一、地址统一、项目已正式上传到 GitHub 并通过远程验收。**
 
 1. **版本号真正统一**：不是无脑全文替换，而是区分「当前版本」与「历史标注」——
    后者必须保留，否则等于篡改开发记录。并新增 26 项守卫防止将来再漏。
@@ -331,8 +363,9 @@ url.https://steven-sways@github.com/.insteadof=https://github.com/
 4. **过程中修掉 3 个问题**，其中 `.github/` 丢失是**工具缺陷**——
    根因是文件只存在于发布副本、没有落到开发树。
 
-**必须诚实指出**：**推送这一步没有完成** —— 需要一个已注册到 GitHub 账号的 SSH 公钥。
-仓库、提交、远程、密钥都已就绪，只差把公钥加到账号里。
+**必须诚实指出**：用户最初提供的**账号密码无法用于 GitHub 推送**（实测 401），
+最终通过 **OAuth 设备流**完成授权；另外用户以为已创建的仓库**实际并不存在**，
+已代为创建。这两点如果没核实就动手，都会表现为权限问题而让人在凭据上反复折腾。
 
 ---
 
