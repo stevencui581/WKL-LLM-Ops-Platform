@@ -42,11 +42,25 @@ class JournalFollower:
         self.running = False
         #: 无法跟随时给用户的**可操作**原因（单元不存在/反复退出），供 health 展示
         self.unavailable_reason: str | None = None
+        #: journalctl 退出时的第一行 stderr（诊断用）
+        self.last_error: str | None = None
         self._quick_exits = 0
 
     # ------------------------------------------------------------------
     def build_argv(self) -> list[str]:
-        argv = [
+        """跟随命令：**只**用 ``--cursor-file``，绝不混入 ``-n`` / ``--since``。
+
+        实测缺陷（v0.6.1）：journalctl 明确禁止
+        ``--since`` / ``--cursor`` / ``--cursor-file`` / ``--after-cursor`` 混用，
+        混用会直接打印
+        "Please specify only one of --since=, --cursor=, --cursor-file=, ..."
+        并以 rc=1 退出 —— 而旧代码在**游标文件不存在**时正好把 ``-n`` 和
+        ``--since`` 一起传了进去，于是任何全新部署上跟随器都永远起不来。
+
+        首批历史行由 :meth:`backfill` 用一条**独立**查询种子（不带游标），
+        因此这里只负责从游标续读。
+        """
+        return [
             self.s.journalctl,
             "-u",
             self.s.llama_unit,
@@ -57,18 +71,6 @@ class JournalFollower:
             "--cursor-file",
             self.s.journal_cursor_path,
         ]
-        if not os.path.exists(self.s.journal_cursor_path):
-            # 首次运行没有游标：限制回填量。
-            # 同时用 -n 保证「空闲服务器」上日志面板也有内容 ——
-            # llama-server 空闲时可能十几分钟不产生任何日志，
-            # 只给 --since 会让面板一直空着（实测踩过这个坑）。
-            argv += [
-                "-n",
-                str(self.s.journal_backfill_lines),
-                "--since",
-                self.s.journal_since,
-            ]
-        return argv
 
     # ------------------------------------------------------------------
     def subscribe(self, maxsize: int | None = None) -> asyncio.Queue[LogLine]:
@@ -205,14 +207,16 @@ class JournalFollower:
                 self._quick_exits = 0
                 backoff = 1.0
                 self.unavailable_reason = None
+                self.last_error = None
                 await asyncio.sleep(1.0)
                 continue
-            # 立刻退出且一行都没产出：多半是单元名错/无 journal 权限。
+            # 立刻退出且一行都没产出：多半是单元名错/无 journal 权限/参数冲突。
             # 指数退避，避免 1 秒一次的重启风暴。
             self._quick_exits += 1
             if self._quick_exits >= 3:
+                detail = f"：{self.last_error}" if self.last_error else ""
                 self.unavailable_reason = (
-                    f"journalctl 对单元 {self.s.llama_unit} 反复退出且无输出"
+                    f"journalctl 对单元 {self.s.llama_unit} 反复退出且无输出{detail}"
                     "（检查单元名与 journald 读取权限）"
                 )
             await asyncio.sleep(min(backoff, 30.0))
@@ -250,11 +254,25 @@ class JournalFollower:
                 self._publish(line)
         finally:
             if self._proc is not None:
+                proc = self._proc
+                # journalctl 退出前会把错误写到 stderr：先取回来再善后，
+                # 否则只看到 rc=1，用户无从下手。
+                if proc.returncode is not None and proc.stderr is not None:
+                    with contextlib.suppress(Exception):
+                        err_b = await asyncio.wait_for(proc.stderr.read(), timeout=1.0)
+                        text = err_b.decode("utf-8", "replace").strip()
+                        if text:
+                            self.last_error = text.splitlines()[0][:200]
+                else:
+                    with contextlib.suppress(Exception):
+                        proc.terminate()
                 with contextlib.suppress(Exception):
-                    self._proc.terminate()
-                with contextlib.suppress(Exception):
-                    await asyncio.wait_for(self._proc.wait(), timeout=3)
-                rc = self._proc.returncode
-                log.info("journal follower exited rc=%s", rc)
+                    await asyncio.wait_for(proc.wait(), timeout=3)
+                rc = proc.returncode
+                log.info(
+                    "journal follower exited rc=%s%s",
+                    rc,
+                    f" ({self.last_error})" if self.last_error else "",
+                )
                 self._proc = None
         return produced

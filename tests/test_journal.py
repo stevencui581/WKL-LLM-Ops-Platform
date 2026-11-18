@@ -45,12 +45,20 @@ class FakeJProc:
         return self.returncode
 
 
-def test_build_argv_without_cursor_adds_backfill(settings):
+def test_build_argv_does_not_mix_cursor_file_with_since(settings):
+    """v0.6.1 回归：``--cursor-file`` 不得与 ``-n`` / ``--since`` 混用。
+
+    journalctl 对混用会直接打印
+    "Please specify only one of --since=, --cursor=, --cursor-file=, ..."
+    并以 rc=1 退出 —— 旧代码在游标文件不存在时正好把两者一起传，
+    导致任何全新部署上跟随器永远起不来（实测）。
+    首批历史行由 ``backfill()`` 用独立查询种子。
+    """
     f = JournalFollower(settings)
     argv = f.build_argv()
     assert "--cursor-file" in argv
-    assert "-n" in argv and str(settings.journal_backfill_lines) in argv
-    assert "--since" in argv
+    assert "-n" not in argv, f"不得与 --cursor-file 混用 -n：{argv}"
+    assert "--since" not in argv, f"不得与 --cursor-file 混用 --since：{argv}"
 
 
 def test_build_argv_with_cursor_has_no_backfill(settings, tmp_path):

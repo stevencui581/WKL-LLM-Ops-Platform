@@ -34,6 +34,10 @@ This project follows [Semantic Versioning](https://semver.org/) and the
   collector stale and flooded the dashboard with errors. It is now reported as available with a
   diagnostic note. Also added vLLM support for `vllm:kv_cache_usage_perc` (KV panel) and
   counter-delta `tokens/s` for frameworks that expose no `*_seconds_total` counter.
+- **The journal follower could never start on a fresh install.** `journalctl` rejects
+  `--cursor-file` combined with `-n` / `--since`, and the follower passed all of them whenever the
+  cursor file did not exist yet — so it exited rc=1 on every fresh deployment. It now uses only
+  `--cursor-file`; the initial lines come from the separate backfill query.
 
 ### Changed
 

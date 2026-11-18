@@ -30,6 +30,9 @@
   原先每一拍都记失败、把采集器标成 stale，界面满屏错误。现在如实标记为可用并附诊断说明。
   同时新增 vLLM 的 `vllm:kv_cache_usage_perc`（KV 面板）与基于计数器增量的 tokens/s
   （适用于没有 `*_seconds_total` 计数器的框架）。
+- **全新部署上 journal 跟随器永远起不来。** `journalctl` 不允许 `--cursor-file` 与
+  `-n` / `--since` 混用，而跟随器在游标文件不存在时正好把三者一起传 —— 于是每次全新
+  部署都以 rc=1 退出。现在只用 `--cursor-file`，首批历史行由独立的 backfill 查询种子。
 
 ### 变更
 
