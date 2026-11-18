@@ -263,3 +263,68 @@ def test_unknown_framework_falls_back_to_props(tmp_path):
     c = _container(tmp_path)
     assert c.aggregator.framework is None
     assert c.aggregator._metrics_enabled() is False
+
+
+# ===========================================================================
+# 4. vLLM 专属：KV 缓存占用 / tokens/s / 「接口通但没指标」
+# ===========================================================================
+class _FakeMetricsClient:
+    def __init__(self, text: str = "", code: int = 200):
+        self._text = text
+        self._code = code
+        self.calls = 0
+
+    async def metrics(self):
+        self.calls += 1
+        if self._code != 200:
+            return False, "", f"HTTP {self._code}"
+        return True, self._text, None
+
+
+def test_vllm_kv_usage_from_metrics(collector):
+    """vLLM 没有 /slots，但 /metrics 上报缓存占用 —— 不应显示 0%。"""
+    collector.set_series_map(_detect(VLLM_TABLE).metrics_map)
+    text = "vllm:kv_cache_usage_perc 42.5\nvllm:generation_tokens_total 1000\n"
+    collector.values = parse_prometheus(text, collector._names)
+    assert collector.kv_usage_pct() == pytest.approx(42.5)
+
+
+def test_kv_usage_ratio_is_scaled_to_percent(collector):
+    """有的版本上报 0~1 的比例，必须换算成百分比。"""
+    collector.set_series_map(_detect(VLLM_TABLE).metrics_map)
+    collector.values = {"vllm:kv_cache_usage_perc": 0.42}
+    assert collector.kv_usage_pct() == pytest.approx(42.0)
+
+
+def test_tokens_per_second_from_counter_delta(collector):
+    """没有 *_seconds_total 的框架：用计数器增量算 tokens/s。"""
+    collector.set_series_map(_detect(VLLM_TABLE).metrics_map)
+    name = "vllm:generation_tokens_total"
+    collector._update_rate({name: 100.0}, now=10.0)
+    assert collector.tokens_per_second() is None, "首次采样没有基准，不能猜"
+    collector._update_rate({name: 300.0}, now=12.0)
+    assert collector.tokens_per_second() == pytest.approx(100.0)
+    # 计数器归零（服务重启）：不产生负速率，也不保留陈旧值
+    collector._update_rate({name: 10.0}, now=14.0)
+    assert collector.tokens_per_second() == pytest.approx(100.0)
+
+
+async def test_endpoint_ok_but_no_known_series_is_not_an_error(collector):
+    """接口 200、但没有已知 series：应标为可用 + 提示，而不是每拍失败。"""
+    collector.client = _FakeMetricsClient("vllm:some_future_metric 1\n")
+    # 异步测试里不能用 asyncio.run(detect())，直接用 SPECS 的映射
+    collector.set_series_map(dict(fw.SPECS_BY_ID["vllm"].metrics_map))
+    assert await collector.collect() is True
+    assert collector.available is True
+    assert collector.disabled_reason is None
+    assert collector.note and "未匹配到已知指标名" in collector.note
+    assert collector.state.stale is False, "不应把「没指标」记成 stale"
+
+
+async def test_endpoint_without_matching_prefix_still_fails(collector):
+    """连前缀都对不上（例如根本没开指标）仍然算失败，不能假装可用。"""
+    collector.client = _FakeMetricsClient("other_metric 1\n")
+    collector.set_series_map(dict(fw.SPECS_BY_ID["vllm"].metrics_map))
+    for _ in range(3):  # stale 需要连续多次失败
+        assert await collector.collect() is False
+    assert collector.state.stale is True

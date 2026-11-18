@@ -22,6 +22,14 @@
   在 `extra="forbid"` 下 pydantic-settings 把它当成非法输入，`import app.main` 抛
   `ValidationError`，安装脚本在自检步骤中止。现在 `log_level` 是真实且带校验的配置项，
   并新增守卫保证「文档里写的环境变量键」与 `Settings` 字段始终一致。
+- **journalctl 跟随器重启风暴。** 配置的 systemd 单元不存在时，
+  `journalctl -u <单元> -f` 会立刻以 rc=0 退出；跟随器把它当作正常退出并每秒重启
+  （实测一台机器 12 分钟重启 797 次）。现在先查单元的 `LoadState`，空退出按指数退避，
+  并在 `/api/health` 给出可操作原因（「单元 X 不存在，请检查 `LLMCONSOLE_LLAMA_UNIT`」）。
+- **「指标接口可达但没有已知指标」被当成失败。** 接口返回 200 却没有任何已知 series 时，
+  原先每一拍都记失败、把采集器标成 stale，界面满屏错误。现在如实标记为可用并附诊断说明。
+  同时新增 vLLM 的 `vllm:kv_cache_usage_perc`（KV 面板）与基于计数器增量的 tokens/s
+  （适用于没有 `*_seconds_total` 计数器的框架）。
 
 ### 变更
 

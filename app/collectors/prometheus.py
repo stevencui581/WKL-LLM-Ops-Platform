@@ -27,6 +27,7 @@ from ..adapters.llama import LlamaClient
 from ..config import Settings
 from ..services.framework import (
     DEFAULT_METRICS_MAP,
+    M_KV_USAGE_PERCENT,
     M_REQUESTS_WAITING,
     M_SPEC_ACCEPTED_TOKENS,
     M_SPEC_DRAFT_TOKENS,
@@ -84,7 +85,12 @@ class PrometheusCollector:
         self.values: dict[str, float] = {}
         self.available: bool | None = None  # None = 未知，True/False = 已探明
         self.disabled_reason: str | None = None
+        #: 接口可用但没有一个已知 series 时的说明（不是错误，是可诊断的提示）
+        self.note: str | None = None
         self._last_ok_mono = 0.0
+        #: 上一次生成 token 计数与单调时钟，用于算 tokens/s（vLLM 没有 *_seconds_total）
+        self._last_gen: tuple[float, float] | None = None
+        self._gen_rate: float | None = None
         #: 当前框架的指标映射（概念 → 候选 series 名）
         self._map: Mapping[str, tuple[str, ...]] = DEFAULT_METRICS_MAP
         self._names: frozenset[str] = _names_of(self._map)
@@ -102,6 +108,9 @@ class PrometheusCollector:
         if self.available is not True:
             self.available = None
             self.disabled_reason = None
+        self.note = None
+        self._last_gen = None
+        self._gen_rate = None
 
     def mark_disabled(self, reason: str) -> None:
         self.available = False
@@ -142,14 +151,53 @@ class PrometheusCollector:
             return False
         values = parse_prometheus(text, self._names)
         if not values:
-            self.state.fail(self._no_match_reason(text))
+            reason = self._no_match_reason(text)
+            if reason.startswith("指标接口有响应"):
+                # 接口**是通的**，只是这个构建没暴露我们认识的指标名。
+                # 这不是错误：不应每 2 秒记一次失败、把面板标成 stale。
+                # 如实标记为"可用但无已知指标"，并把原因传给 UI/诊断。
+                self.values = {}
+                self.available = True
+                self.disabled_reason = None
+                self.note = reason
+                self.state.ok((time.monotonic() - t0) * 1000.0)
+                return True
+            self.state.fail(reason)
             return False
         self.values = values
         self.available = True
         self.disabled_reason = None
+        self.note = None
+        self._update_rate(values)
         self._last_ok_mono = time.monotonic()
         self.state.ok((time.monotonic() - t0) * 1000.0)
         return True
+
+    def _update_rate(self, values: dict[str, float], now: float | None = None) -> None:
+        """用生成 token 计数器算 tokens/s（增量 / 时间差）。
+
+        llama.cpp 有 ``tokens_predicted_seconds_total`` 可以直接相除；
+        vLLM/SGLang 只提供累计量，因此必须自己记上一次的样本。
+        """
+        gen = None
+        for name in self._map.get(M_TOKENS_GENERATED, ()):
+            if values.get(name) is not None:
+                gen = values[name]
+                break
+        if gen is None:
+            self._last_gen = None
+            self._gen_rate = None
+            return
+        if now is None:
+            now = time.monotonic()
+        if self._last_gen is not None:
+            prev_val, prev_ts = self._last_gen
+            dt = now - prev_ts
+            dv = gen - prev_val
+            # 计数回绕/服务重启时 dv < 0 → 本轮不更新速率，重新建立基准
+            if dt > 0 and dv >= 0:
+                self._gen_rate = dv / dt
+        self._last_gen = (gen, now)
 
     def _no_match_reason(self, text: str) -> str:
         """区分"完全没数据"与"有数据但不是我们认识的名字"——后者要能提示用户。"""
@@ -207,3 +255,21 @@ class PrometheusCollector:
             return None
         denom = cached + prefill
         return (cached / denom) if denom > 0 else None
+
+    def tokens_per_second(self) -> float | None:
+        """由生成计数器增量算出的速率（vLLM/SGLang 用这个）。
+
+        首次采集没有基准、或计数器回绕/服务重启后，返回 ``None`` —— 不猜。
+        """
+        return self._gen_rate
+
+    def kv_usage_pct(self) -> float | None:
+        """KV / 缓存占用百分比（vLLM 的 ``kv_cache_usage_perc``，0~100）。
+
+        llama.cpp 没有这个指标（它由 /slots 计算），因此取到 ``None``。
+        """
+        v = self._val(M_KV_USAGE_PERCENT)
+        if v is None:
+            return None
+        # 防御：有的版本上报 0~1 的比例而不是百分比
+        return v * 100.0 if 0.0 <= v <= 1.0 else v

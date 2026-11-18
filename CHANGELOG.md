@@ -24,6 +24,16 @@ This project follows [Semantic Versioning](https://semver.org/) and the
   field — with `extra="forbid"`, pydantic-settings rejected it and `import app.main` raised
   `ValidationError`, so the installer aborted at its self-check step. `log_level` is now a real,
   validated setting, and a guard keeps documented env keys in sync with `Settings`.
+- **journalctl follower restart storm.** When the configured unit does not exist,
+  `journalctl -u <unit> -f` exits immediately with rc=0. The follower treated that as a normal
+  exit and restarted every second (797 restarts in 12 minutes on a real host). It now checks the
+  unit's `LoadState` first, backs off exponentially on empty exits, and reports an actionable
+  reason ("unit X does not exist — check `LLMCONSOLE_LLAMA_UNIT`") in `/api/health`.
+- **"Metrics endpoint reachable but no known series" was treated as a failure.** A metrics
+  endpoint that responds but exposes none of the known series made every tick fail, marked the
+  collector stale and flooded the dashboard with errors. It is now reported as available with a
+  diagnostic note. Also added vLLM support for `vllm:kv_cache_usage_perc` (KV panel) and
+  counter-delta `tokens/s` for frameworks that expose no `*_seconds_total` counter.
 
 ### Changed
 

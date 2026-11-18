@@ -40,6 +40,9 @@ class JournalFollower:
         self.restarts = 0
         self.last_line_ts: float = 0.0
         self.running = False
+        #: 无法跟随时给用户的**可操作**原因（单元不存在/反复退出），供 health 展示
+        self.unavailable_reason: str | None = None
+        self._quick_exits = 0
 
     # ------------------------------------------------------------------
     def build_argv(self) -> list[str]:
@@ -152,24 +155,70 @@ class JournalFollower:
         self.running = False
 
     # ------------------------------------------------------------------
+    async def unit_load_state(self) -> str:
+        """查询被监控单元的 ``LoadState``（loaded / not-found / masked …）。
+
+        为什么需要它：``journalctl -u <不存在的单元> -f`` **不会报错**，
+        它立刻以 rc=0 退出。若不先判断，跟随循环会 1 秒重启一次
+        （实测 12 分钟重启 797 次），既刷日志又给不出有用信息。
+        """
+        argv = [self.s.systemctl, "show", "-p", "LoadState", "--value", self.s.llama_unit]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            out_b, _ = await proc.communicate()
+        except (FileNotFoundError, OSError) as exc:
+            log.debug("systemctl unavailable: %s", exc)
+            return "unknown"
+        return out_b.decode("utf-8", "replace").strip() or "unknown"
+
+    # ------------------------------------------------------------------
     async def _run(self) -> None:
         backoff = 1.0
         while not self._stop.is_set():
+            state = await self.unit_load_state()
+            if state == "not-found":
+                self.running = False
+                self.unavailable_reason = (
+                    f"systemd 单元 {self.s.llama_unit} 不存在"
+                    "（请检查 LLMCONSOLE_LLAMA_UNIT 是否写成了实际单元名）"
+                )
+                # 单元可能稍后才创建：低频重查，不做快速重启
+                await asyncio.sleep(30.0)
+                continue
+            produced = 0
             try:
-                await self._follow_once()
-                backoff = 1.0
+                produced = await self._follow_once()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - 跟随循环必须自愈
                 log.warning("journal follower error: %s: %s", type(exc).__name__, exc)
+                self.unavailable_reason = f"journalctl 启动失败：{type(exc).__name__}: {exc}"
             self.running = False
             if self._stop.is_set():
                 break
             self.restarts += 1
-            await asyncio.sleep(min(backoff, 10.0))
-            backoff = min(backoff * 2, 10.0)
+            if produced > 0:
+                self._quick_exits = 0
+                backoff = 1.0
+                self.unavailable_reason = None
+                await asyncio.sleep(1.0)
+                continue
+            # 立刻退出且一行都没产出：多半是单元名错/无 journal 权限。
+            # 指数退避，避免 1 秒一次的重启风暴。
+            self._quick_exits += 1
+            if self._quick_exits >= 3:
+                self.unavailable_reason = (
+                    f"journalctl 对单元 {self.s.llama_unit} 反复退出且无输出"
+                    "（检查单元名与 journald 读取权限）"
+                )
+            await asyncio.sleep(min(backoff, 30.0))
+            backoff = min(backoff * 2, 30.0)
 
-    async def _follow_once(self) -> None:
+    async def _follow_once(self) -> int:
         os.makedirs(self.s.state_dir, exist_ok=True)
         argv = self.build_argv()
         log.info("starting journal follower: %s", " ".join(argv))
@@ -180,6 +229,7 @@ class JournalFollower:
             limit=self.s.stream_reader_limit,
         )
         self.running = True
+        produced = 0
         assert self._proc.stdout is not None
         try:
             while not self._stop.is_set():
@@ -193,6 +243,7 @@ class JournalFollower:
                     self.parse_failures += 1
                     line = LogLine(text=raw.rstrip("\n"), ts="", level="I")
                 self.lines_total += 1
+                produced += 1
                 self.last_line_ts = time.time()
                 self.ring.append(line)
                 self.stats.update(line.text, line.epoch or None)
@@ -206,3 +257,4 @@ class JournalFollower:
                 rc = self._proc.returncode
                 log.info("journal follower exited rc=%s", rc)
                 self._proc = None
+        return produced

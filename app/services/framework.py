@@ -77,6 +77,9 @@ M_TOKENS_PROMPT_SECONDS = "tokens_prompt_seconds_total"
 M_TOKENS_PROMPT_CACHED = "tokens_prompt_cached_total"
 M_SPEC_DRAFT_TOKENS = "spec_draft_tokens_total"
 M_SPEC_ACCEPTED_TOKENS = "spec_accepted_tokens_total"
+#: KV/显存缓存占用百分比（gauge，0~100）。vLLM 用 ``kv_cache_usage_perc`` 上报；
+#: llama.cpp 没有等价指标（它由 /slots 计算），因此只在 vLLM 映射里出现。
+M_KV_USAGE_PERCENT = "kv_usage_percent"
 
 
 # ---------------------------------------------------------------- 规格定义
@@ -188,6 +191,9 @@ SPECS: tuple[FrameworkSpec, ...] = (
             M_REQUESTS_WAITING: ("vllm:num_requests_waiting",),
             M_TOKENS_GENERATED: ("vllm:generation_tokens_total",),
             M_TOKENS_PROMPT: ("vllm:prompt_tokens_total",),
+            #: vLLM 的 KV 缓存占用（0~100 的 gauge）。有它就能在没有 /slots 时
+            #: 仍然显示「KV 池占用」—— 否则该面板只能显示 0%。
+            M_KV_USAGE_PERCENT: ("vllm:kv_cache_usage_perc",),
             # 投机解码：vLLM 早期版本带 ``spec_decode_`` 前缀，新版本改为
             # ``spec_decode_num_*``；两种都列上，跨版本兼容。
             M_SPEC_DRAFT_TOKENS: (

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from app.collectors.journal import JournalFollower
 
 
@@ -167,6 +169,9 @@ async def test_start_calls_backfill_then_follows(settings, monkeypatch):
 
     async def fake_exec(*argv, **kw):
         order.append("follow")
+        # _run() 现在会先查单元状态，这一步也必须能正常返回
+        if argv and str(argv[0]).endswith("systemctl"):
+            return FakeJProc(b"loaded\n")
         p = FakeJProc(b"")
         p.stdout = NeverEnding()
         return p
@@ -180,3 +185,69 @@ async def test_start_calls_backfill_then_follows(settings, monkeypatch):
     assert order[0] == "backfill"
     assert "follow" in order
     assert f._task is None
+
+
+# ===========================================================================
+# v0.6.1：单元不存在 / journalctl 立刻退出时不得 1 秒重启一次
+# ===========================================================================
+async def test_unit_load_state_parses_not_found(settings, monkeypatch):
+    async def fake_exec(*argv, **kw):
+        return FakeJProc(b"not-found\n")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    f = JournalFollower(settings)
+    assert await f.unit_load_state() == "not-found"
+
+
+async def test_unit_load_state_unknown_when_systemctl_missing(settings, monkeypatch):
+    async def boom(*a, **k):
+        raise FileNotFoundError("systemctl")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", boom)
+    f = JournalFollower(settings)
+    assert await f.unit_load_state() == "unknown"
+
+
+async def test_run_marks_actionable_reason_when_unit_missing(settings, monkeypatch):
+    """单元不存在时：给出「检查 LLMCONSOLE_LLAMA_UNIT」的原因，而不是空转。"""
+
+    async def fake_state(self):
+        return "not-found"
+
+    async def stop_after_first_sleep(_seconds):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(JournalFollower, "unit_load_state", fake_state)
+    monkeypatch.setattr(asyncio, "sleep", stop_after_first_sleep)
+    f = JournalFollower(settings)
+    with pytest.raises(asyncio.CancelledError):
+        await f._run()
+    reason = f.unavailable_reason or ""
+    assert "不存在" in reason
+    assert "LLMCONSOLE_LLAMA_UNIT" in reason
+    assert f.restarts == 0, "单元不存在不应计入重启次数"
+
+
+async def test_quick_exit_backoff_and_reason(settings, monkeypatch):
+    """journalctl 立刻退出且零输出：指数退避 + 三次后给出原因。"""
+    sleeps: list[float] = []
+
+    async def fake_state(self):
+        return "loaded"
+
+    async def fake_follow(self):
+        return 0  # 一行都没有 → 视为异常退出
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) >= 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(JournalFollower, "unit_load_state", fake_state)
+    monkeypatch.setattr(JournalFollower, "_follow_once", fake_follow)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    f = JournalFollower(settings)
+    with pytest.raises(asyncio.CancelledError):
+        await f._run()
+    assert sleeps[:3] == [1.0, 2.0, 4.0], f"退避序列不对：{sleeps}"
+    assert "反复退出" in (f.unavailable_reason or "")

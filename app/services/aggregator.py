@@ -215,8 +215,25 @@ class Aggregator:
         st = self.journal.stats
 
         kv = self._kv_block()
+        # v0.6.1：vLLM 没有 /slots，但 /metrics 会上报缓存占用。
+        # 有指标时用它填 pct，否则维持"不可用"，不猜。
+        if kv.pct is None:
+            usage = self.metrics.kv_usage_pct()
+            if usage is not None:
+                kv = kv.model_copy(
+                    update={
+                        "pct": round(max(0.0, min(100.0, usage)), 1),
+                        "label": f"KV 缓存占用由框架指标上报（{usage:.1f}%；槽位明细不可用）",
+                    }
+                )
 
         decode_tps, decode_src = st.effective_decode_tps(self.slots.slots_delta_tps)
+        # v0.6.1：没有日志统计（vLLM 常用 --disable-log-stats/非 journald）时，
+        # 用 Prometheus 生成计数器的增量算速率 —— 否则解码速率永远是「—」。
+        if decode_tps is None and decode_src == "none":
+            mrate = self.metrics.tokens_per_second()
+            if mrate is not None:
+                decode_tps, decode_src = mrate, "metrics_delta"
 
         # 累计生成 token：优先 /metrics（精确），否则回退日志累加（不精确）
         gen_total = self.metrics.tokens_predicted_total()
@@ -393,12 +410,16 @@ class Aggregator:
                 "unit": self.s.llama_unit,
                 "lines_total": j.lines_total,
                 "restarts": j.restarts,
-                "error": None if j.running else "follower not running",
+                "error": None
+                if j.running
+                else (getattr(j, "unavailable_reason", None) or "follower not running"),
             },
             "metrics": {
                 "ok": self.metrics.available is True,
                 "enabled": self._metrics_enabled(),
                 "reason": self.metrics.disabled_reason,
+                #: 接口通了但没有已知指标时的说明（不是错误）
+                "note": self.metrics.note,
             },
             "collectors": {
                 "slots": self.slots.state.as_dict(),
@@ -417,7 +438,9 @@ class Aggregator:
         if self.gpu.state.stale:
             reasons.append(f"nvidia-smi 不可用（{self.gpu.state.last_error or 'unknown'}）")
         if not self.journal.running:
-            reasons.append("journalctl 跟随器未运行")
+            # 尽量给出**可操作**的原因（单元不存在 / 反复退出），
+            # 而不是笼统的「跟随器未运行」。
+            reasons.append(getattr(self.journal, "unavailable_reason", None) or "journalctl 跟随器未运行")
         return (len(reasons) == 0), reasons
 
     def ready_codes(self) -> tuple[bool, list[str]]:
