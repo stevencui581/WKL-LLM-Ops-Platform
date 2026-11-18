@@ -21,8 +21,9 @@
 
 ## 开发环境
 
-需要 **Python 3.12+**，在 Linux 上开发（项目面向 Linux 部署；在 macOS/Windows 上可以开发与跑测试，
-但部分采集器依赖 Linux 专有命令）。
+需要 **Python 3.12+**，且只支持 **Linux**。本项目面向 Linux：Windows 与 macOS 既不支持部署，
+也不支持开发 —— 少量测试与 `mypy` 依赖 Linux 专有能力（`socket.AF_UNIX`、`/proc`），
+在其它系统上质量门禁无法通过。
 
 ```bash
 git clone https://github.com/stevencui581/WKL-LLM-Ops-Platform.git
@@ -73,7 +74,7 @@ bash selfcheck.sh
 ./venv/bin/ruff format app tests deploy probes tools
 ```
 
-在 Windows 上改过文件的话，还要跑：
+如果有文件是在非 Linux 机器上写的（例如 Windows 编辑器），还要跑：
 
 ```bash
 python tools/fix_line_endings.py

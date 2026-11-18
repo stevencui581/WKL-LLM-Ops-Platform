@@ -31,12 +31,14 @@
 | Fedora | 39 及以上 | ✅ 支持 |
 | openEuler / 麒麟 / 统信 UOS | 较新版本 | ⚠️ 未全面测试，通常可用 |
 | 其它带 systemd 的 Linux | — | ⚠️ 未测试，通常可用 |
-| **Windows / macOS** | — | ❌ **不支持部署** |
+| **Windows / macOS** | — | ❌ **不支持**（部署与开发均不支持） |
 
 > **为什么必须 Linux**：本平台通过 `systemd` 读取推理服务的运行状态、通过 `journald`
 > 读取服务日志、通过 `nvidia-smi` 读取显卡信息。这三项在 Windows / macOS 上不存在。
 >
-> 但你**可以在 Windows / macOS 上开发**：单元测试不依赖这些命令，只是跑起来后大部分面板会显示「未检测到」。
+> **Linux 是唯一支持平台，部署与开发都只支持 Linux。** 本项目不做 Windows/macOS 移植：
+> 少量测试与 `mypy` 依赖 Linux 专有能力（`socket.AF_UNIX`、`/proc`），
+> 因此在其它系统上质量门禁并不成立。
 
 ### 1.2 硬性前提
 

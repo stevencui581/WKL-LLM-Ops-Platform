@@ -31,14 +31,15 @@
 | Fedora | 39 and newer | ✅ Supported |
 | openEuler / Kylin / UOS | Recent releases | ⚠️ Not fully tested, usually works |
 | Other Linux with systemd | — | ⚠️ Untested, usually works |
-| **Windows / macOS** | — | ❌ **Not supported for deployment** |
+| **Windows / macOS** | — | ❌ **Not supported** (deployment or development) |
 
 > **Why Linux is required**: the platform reads inference-service state through `systemd`,
 > service logs through `journald`, and GPU data through `nvidia-smi`. None of these exist on
 > Windows or macOS.
 >
-> You **can** develop on Windows/macOS: the unit tests do not need those commands. The running
-> console will simply show "not detected" for most panels.
+> **Linux is the only supported platform, for deployment and for development.** The project is not
+> ported to Windows/macOS: a few tests and `mypy` rely on Linux-only facilities (`socket.AF_UNIX`,
+> `/proc`), so the quality gate is only meaningful on Linux.
 
 ### 1.2 Hard prerequisites
 

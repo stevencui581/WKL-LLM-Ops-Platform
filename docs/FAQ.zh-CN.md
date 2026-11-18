@@ -4,13 +4,12 @@
 
 ## 安装与部署
 
-### 支持 Windows 或 macOS 部署吗？
+### 支持 Windows 或 macOS 吗？
 
-**不支持。** 控制台依赖 systemd 与 journald 读取服务状态和日志，
-并用 `nvidia-smi` / `lscpu` / `lsblk` 做硬件清点。这些在 Windows/macOS 上不存在。
-
-**但可以在 Windows/macOS 上开发**：单元测试不需要这些命令（采集器都有纯函数级的解析测试）。
-只是跑起来后大部分面板会显示「未检测到」。
+**不支持 —— 部署与开发都不支持。** 控制台依赖 systemd 与 journald 读取服务状态和日志，
+并用 `nvidia-smi` / `lscpu` / `lsblk` 做硬件清点；这些在 Windows/macOS 上不存在。
+另外，少量测试与 `mypy` 依赖 Linux 专有能力（`socket.AF_UNIX`、`/proc`），
+因此在其它系统上质量门禁并不成立。本项目不做其它平台移植。
 
 ### 必须和推理服务在同一台机器上吗？
 
@@ -245,7 +244,7 @@ SUDO_PW='...' LLM_INFER_UNIT=<你的推理单元> bash deploy/install_sudoers.sh
 
 ### `selfcheck.sh` 里 format 检查失败，但代码看着没问题
 
-在 Windows 上开发时，编辑器/Python 默认会写 **CRLF** 行尾。传到 Linux 后：
+如果文件是在非 Linux 机器上写的（例如用 Windows 编辑器），可能被写成 **CRLF** 行尾。传到 Linux 后：
 
 - shell 脚本直接报 `set: pipefail: invalid option name`
 - 无扩展名的配置文件（如 sudoers）会**直接失效**

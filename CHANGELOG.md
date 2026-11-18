@@ -20,6 +20,11 @@ This project follows [Semantic Versioning](https://semver.org/) and the
   Enablement now follows framework capability, and each framework declares a concept → series map
   in `SPECS`; unmapped concepts are reported as unavailable instead of guessed.
 
+### Changed
+
+- **Platform support is now stated explicitly: Linux only** — for deployment *and* for development.
+  Windows/macOS are not supported, and the project will not be ported to them.
+
 ## [v0.6] - 2026-10-04
 
 First public release under the project's canonical repository.

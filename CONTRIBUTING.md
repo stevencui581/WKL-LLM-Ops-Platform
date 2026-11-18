@@ -22,8 +22,9 @@ By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development setup
 
-**Python 3.12+** is required. Develop on Linux (the project targets Linux; macOS/Windows work for
-writing code and running tests, but some collectors depend on Linux-only commands).
+**Python 3.12+** is required, on **Linux**. This project targets Linux only: Windows and macOS are
+neither supported for deployment nor for development. A few tests and `mypy` rely on Linux-only
+facilities (`socket.AF_UNIX`, `/proc`), so the quality gate does not pass elsewhere.
 
 ```bash
 git clone https://github.com/stevencui581/WKL-LLM-Ops-Platform.git
@@ -75,7 +76,7 @@ To fix formatting:
 ./venv/bin/ruff format app tests deploy probes tools
 ```
 
-If you edited files on **Windows**, also run:
+If any file was written on a non-Linux machine (for example a Windows editor), also run:
 
 ```bash
 python tools/fix_line_endings.py

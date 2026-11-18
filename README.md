@@ -168,8 +168,8 @@ bash deploy/verify_all.sh    # 10 end-to-end suites (requires a running service)
 ## ❓ FAQ
 
 **Does it support Windows or macOS?**
-No. It reads service state from `systemd`, logs from `journald` and GPU data from `nvidia-smi`.
-You can develop on those platforms, but most panels stay empty.
+No — neither for deployment nor for development. It reads service state from `systemd`, logs from
+`journald` and GPU data from `nvidia-smi`, and the project is not ported to other platforms.
 
 **Must the console run on the same host as the inference server?**
 Strongly recommended. Only the HTTP API can be reached remotely; service state, logs and GPU data

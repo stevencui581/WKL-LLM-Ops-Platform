@@ -4,13 +4,13 @@
 
 ## Installation and deployment
 
-### Is Windows or macOS supported for deployment?
+### Is Windows or macOS supported?
 
-**No.** The console relies on systemd and journald to read service state and logs, and uses
-`nvidia-smi` / `lscpu` / `lsblk` for hardware inventory. None of these exist on Windows/macOS.
-
-**You can still develop on Windows/macOS**: the unit tests do not need those commands (every collector
-has pure-function parsing tests). It is just that most panels show "not detected" once it runs.
+**No — neither for deployment nor for development.** The console relies on systemd and journald to
+read service state and logs, and uses `nvidia-smi` / `lscpu` / `lsblk` for hardware inventory. None
+of these exist on Windows/macOS. A few tests and `mypy` also rely on Linux-only facilities
+(`socket.AF_UNIX`, `/proc`), so the quality gate is only meaningful on Linux. The project is not
+ported to other platforms.
 
 ### Must it run on the same machine as the inference service?
 
@@ -260,8 +260,8 @@ reason for each of them:
 
 ### `selfcheck.sh` fails the format check, but the code looks fine
 
-When developing on Windows, editors/Python write **CRLF** line endings by default. Once the files reach
-Linux:
+If a file was written on a non-Linux machine (for example a Windows editor), it may get **CRLF** line
+endings by default. Once the files reach Linux:
 
 - shell scripts fail immediately with `set: pipefail: invalid option name`
 - extensionless configuration files (such as sudoers) **stop working entirely**
