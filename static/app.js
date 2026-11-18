@@ -432,10 +432,14 @@ function renderOverview(o) {
   const h = o.health || {};
   if (h.ready === false) {
     setState('warn', t('state.degraded'));
+    //: 分隔符必须按当前语言取 —— 曾经这里引用了一个**未声明的** `zh`，
+    //: 严格模式下抛 ReferenceError，被 main() 的 try/catch 静默吞掉，
+    //: 于是「降级横幅永不出现、总状态永远显示 ok」。改用权威来源 I18N.lang。
+    const sep = I18N.lang === 'zh' ? '；' : '; ';
     const codes = h.reason_codes || [];
     const reasons = codes.length
-      ? codes.map((code) => t('health.' + code)).join(zh ? '；' : '; ')
-      : (h.reasons || []).join(zh ? '；' : '; ');
+      ? codes.map((code) => t('health.' + code)).join(sep)
+      : (h.reasons || []).join(sep);
     const b = $('banner');
     if (b) { b.className = 'banner warn show'; b.textContent = t('banner.degraded', { reasons: reasons }); }
   } else if ((o.alerts || []).some((a) => a.level === 'critical')) {

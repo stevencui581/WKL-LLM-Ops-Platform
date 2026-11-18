@@ -6,90 +6,51 @@ v0.4 增量（均为**加法**，v0.1 已有字段一个不动）：
   * ``model.full_name`` / ``model.path`` 顶栏模型全称（R2）
   * ``baseline`` 自动基线状态（§7）
   * ``llama_uptime_s`` 顶栏「服务运行」（决策 B1）
+
+v0.6.1 重构（**行为修复**，字段一个不少）
+------------------------------------------
+
+原先本路由**手工拼** ``branding`` / ``thresholds`` / ``health``，而 WebSocket 推的是
+``MetricSnapshot.model_dump()`` —— 两条路径字段集不一致，前端却用**同一个**
+``renderOverview()`` 处理。后果是页面每 2 秒被推送覆盖一次：
+
+  * ``state.thresholds`` 被写成 ``undefined || {}`` ⇒ 阈值改了不起作用；
+  * ``o.health`` 变成 ``undefined`` ⇒ 降级横幅永不出现、总状态永远显示 ok。
+
+现在载荷**只有一处来源**：``snapshot.model_dump()``（在 ``app/models.py`` 上定义）。
+本路由只补两个**纯展示派生字段**（``model.full_name`` / ``model.path``），
+它们不属于采集结果，因此不进快照模型。
+
+判据：``tests/test_overview_ws_parity.py`` 断言 REST 与 WS 的**顶层键集合完全相等**，
+且前端读取的每个键都真实存在。
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from ..payload import thresholds_of
 from ._deps import ctx
 
 router = APIRouter()
 
-
-def thresholds_of(c) -> dict:
-    """前端渲染与告警判定需要的**全部**阈值，一次性下发。
-
-    前端不得再出现 95 / 85 / 87 / 83 之类的魔法数字（F5 修复）。
-    """
-    s = c.settings
-    return {
-        # 告警阈值
-        "gpu_temp_warn_c": s.gpu_temp_warn_c,
-        "gpu_temp_crit_c": s.gpu_temp_crit_c,
-        "vram_warn_pct": s.vram_warn_pct,
-        "vram_crit_pct": s.vram_crit_pct,
-        "kv_warn_pct": s.kv_warn_pct,
-        "kv_crit_pct": s.kv_crit_pct,
-        "power_warn_pct": s.power_warn_pct,
-        "mtp_drop_ratio": s.mtp_drop_ratio,
-        "decode_drop_ratio": s.decode_drop_ratio,
-        # 卡片配色阈值（与告警阈值分开）
-        "vram_color_warn_pct": s.vram_color_warn_pct,
-        # 自动基线（可能为 None = 学习中）
-        "mtp_accept_baseline": c.baselines.mtp_baseline if c.baselines else None,
-        "decode_baseline_tps": c.baselines.decode_baseline if c.baselines else None,
-        # 刷新频率（顶栏/底栏文案由前端按此显示）
-        "poll_interval_s": s.poll_interval_s,
-        "history_points": s.history_points,
-        # 自身开销守护
-        "self_cpu_warn_pct": s.self_cpu_warn_pct,
-        "self_rss_warn_mb": s.self_rss_warn_mb,
-    }
+#: 供 ``tests/`` 与其它模块导入的历史入口。
+#:
+#: 实现已移到 ``app/payload.py``（聚合器也要用它，见该模块文件头为何必须共用）：
+#: 放在路由层会让 ``app.services.aggregator`` 反向依赖路由，形成导入环。
+#: 注意签名变为 ``thresholds_of(settings, baselines)`` —— 直接收两个对象，
+#: 避免"容器属性名在路由叫 c.settings、在聚合器叫 self.s"的鸭子类型猜测。
+__all__ = ["router", "thresholds_of"]
 
 
 @router.get("/api/overview")
 async def overview(request: Request) -> dict:
     c = ctx(request)
     snap = c.aggregator.snapshot
-    model = snap.model.model_dump()
-    # R2：顶栏需要"全称"与完整路径
-    model["full_name"] = model.get("name", "")
-    model["path"] = c.props_model_path()
-    return {
-        "ts": snap.ts,
-        "seq": snap.seq,
-        "stale": snap.stale,
-        "branding": {
-            "product_name": c.settings.product_name,
-            "product_name_spaced": c.settings.product_name_spaced,
-            "product_version": c.settings.product_version,
-            "developer": c.settings.developer,
-            "develop_date": c.settings.develop_date,
-        },
-        "model": model,
-        "kpi": snap.kpi.model_dump(),
-        "kv": snap.kv.model_dump(),
-        "runtime": snap.runtime.model_dump(),
-        "system": snap.system.model_dump(),
-        "self": snap.self_info.model_dump(),
-        "alerts": [a.model_dump() for a in snap.alerts],
-        "gpus": [g.model_dump() for g in snap.gpus],
-        "accelerator_badge": snap.accelerator_badge.model_dump(),
-        "baseline": snap.baseline.model_dump(),
-        "llama_uptime_s": snap.llama_uptime_s,
-        "hardware_ts": snap.hardware_ts,
-        #: v0.5 §1：推理框架识别结果（llama.cpp / ollama / vLLM / SGLang / …）
-        #: 中英文都给，前端按当前语言渲染 —— 页面不写死任何框架名。
-        #: **取自快照**：REST 与 WebSocket 必须是同一数据源，否则页面每 2 秒
-        #: 被推送覆盖后，「框架」徽标会退回占位文案并永久停在那里（实测踩过的坑）。
-        "framework": snap.framework,
-        "thresholds": thresholds_of(c),
-        "health": {
-            "ready": c.aggregator.ready()[0],
-            "reasons": c.aggregator.ready()[1],
-            #: v0.4.3 §6.4：语言无关的降级原因码，前端按当前语言渲染
-            "reason_codes": c.aggregator.ready_codes()[1],
-            "ws": c.hub.stats(),
-        },
-    }
+    #: 全量载荷来自快照 —— 与 WebSocket **同一份数据**，不可能再漂移。
+    payload: dict = snap.model_dump()
+    #: R2：顶栏需要"全称"与完整路径（派生展示字段，不进快照模型）
+    payload["model"] = dict(payload["model"], full_name=snap.model.name, path=c.props_model_path())
+    #: ``self_info`` → ``self``：与 WebSocket 保持同一字段名
+    payload["self"] = payload.pop("self_info")
+    return payload

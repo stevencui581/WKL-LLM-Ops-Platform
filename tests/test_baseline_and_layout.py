@@ -245,9 +245,16 @@ def test_version_not_duplicated_in_static():
 
 
 def test_branding_served_from_backend():
-    src = (ROOT / "app" / "routes" / "overview.py").read_text(encoding="utf-8")
+    """品牌信息必须由后端下发，且**随快照**下发（否则 WS 覆盖后失效）。
+
+    v0.6.1：构造逻辑移到 ``app/payload.py``（聚合器与路由共用，见该文件头），
+    因此这里同时扫两个文件 —— 破坏了「两条路径同源」即失败。
+    """
+    src = "\n".join(
+        (ROOT / "app" / part).read_text(encoding="utf-8") for part in ("routes/overview.py", "payload.py")
+    )
     assert "product_version" in src
-    assert "c.settings.product_name" in src
+    assert "s.product_name" in src
 
 
 # ===========================================================================
@@ -262,25 +269,37 @@ def test_existing_endpoints_still_declared():
 
 
 def test_overview_keeps_v01_fields():
-    """契约：/api/overview 原有字段一个不少（向后兼容）。"""
-    src = (ROOT / "app" / "routes" / "overview.py").read_text(encoding="utf-8")
+    """契约：/api/overview 原有字段一个不少（向后兼容）。
+
+    v0.6.1：路由不再手工拼字段，改为 ``snap.model_dump()``；
+    因此"字段是否还在"由**两处**共同保证 ——
+      * ``app/payload.py::OVERVIEW_FIELDS`` 显式声明契约（可被测试直接 import）；
+      * 路由必须真的 dump 快照（而不是退回手工拼装）。
+    破坏任一条都会失败。
+    """
+    from app.payload import OVERVIEW_FIELDS
+
+    route = (ROOT / "app" / "routes" / "overview.py").read_text(encoding="utf-8")
     for field in (
-        '"ts"',
-        '"seq"',
-        '"stale"',
-        '"branding"',
-        '"model"',
-        '"kpi"',
-        '"kv"',
-        '"runtime"',
-        '"system"',
-        '"self"',
-        '"alerts"',
-        '"gpus"',
-        '"thresholds"',
-        '"health"',
+        "ts",
+        "seq",
+        "stale",
+        "branding",
+        "model",
+        "kpi",
+        "kv",
+        "runtime",
+        "system",
+        "self",
+        "alerts",
+        "gpus",
+        "thresholds",
+        "health",
     ):
-        assert field in src, f"/api/overview 缺少 v0.1 字段 {field}"
+        assert field in OVERVIEW_FIELDS, f"/api/overview 契约缺少 v0.1 字段 {field}"
+    #: 同源：路由必须 dump 快照，且把 self_info 改名成 self（与 WS 一致）
+    assert "snap.model_dump()" in route, "overview 路由必须从快照取全部字段，否则会与 WS 漂移"
+    assert 'payload.pop("self_info")' in route, "self_info 必须改名成 self，与 WebSocket 字段名一致"
 
 
 def test_thresholds_complete_for_frontend():
@@ -291,11 +310,7 @@ def test_thresholds_complete_for_frontend():
         mtp_baseline = 0.8
         decode_baseline = 60.0
 
-    class Ctx:
-        settings = Settings()
-        baselines = FakeBaselines()
-
-    t = thresholds_of(Ctx())
+    t = thresholds_of(Settings(), FakeBaselines())
     for key in (
         "gpu_temp_warn_c",
         "gpu_temp_crit_c",

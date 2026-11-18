@@ -349,6 +349,8 @@ class MetricSnapshot(BaseModel):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     alerts: list[Alert] = Field(default_factory=list)
     #: v0.4：告警阈值随快照下发，前端不再硬编码（F5）
+    #: v0.6.1：由 ``app/payload.py::thresholds_of()`` 填充 —— 原先这个字段
+    #: **从未被赋值**，形状对但内容是空字典，前端因此退回硬编码值。
     thresholds: dict = Field(default_factory=dict)
     #: v0.4：自动基线状态（§7）
     baseline: BaselineState = Field(default_factory=BaselineState)
@@ -365,6 +367,17 @@ class MetricSnapshot(BaseModel):
     #: 推送覆盖一次，若快照不含此字段，顶栏「框架」徽标会先正确显示一瞬、
     #: 随后退回「识别中…」并永久停在那里（实测踩过的坑）。
     framework: dict = Field(default_factory=dict)
+    #: v0.6.1：品牌信息。
+    #:
+    #: 原先只在 ``/api/overview`` 里手工拼，因此**页面每 2 秒被 WS 覆盖后
+    #: 版号/产品名会退回静态兜底值**。前端 ``renderOverview()`` 会读
+    #: ``o.branding``，所以它必须在快照里（见 ``app/payload.py`` 的文件头）。
+    branding: dict = Field(default_factory=dict)
+    #: v0.6.1：就绪状态与降级原因。
+    #:
+    #: ``ready``/``reasons``/``reason_codes`` 必须随快照下发 —— 前端用它决定
+    #: 是否显示降级横幅；缺失时横幅永不出现、总状态永远显示 ok。
+    health: dict = Field(default_factory=dict)
 
 
 class LogLine(BaseModel):

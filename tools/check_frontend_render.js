@@ -62,6 +62,20 @@ function makeEl(id) {
     get firstElementChild() { return this.children[0] || makeEl(id + '-child'); },
     get textContent() { return this._text; },
     set textContent(v) { this._text = String(v); },
+    // canvas 2d 上下文桩：`drawSpark()` 会真实调用这些方法，
+    // 没有它就无法在 harness 里跑完整 renderOverview（会抛 TypeError）。
+    clientWidth: 200,
+    width: 200,
+    height: 40,
+    getContext() {
+      return {
+        clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
+        fillRect() {}, fillText() {}, measureText: () => ({ width: 0 }),
+        set strokeStyle(v) {}, get strokeStyle() { return ''; },
+        set lineWidth(v) {}, get lineWidth() { return 1; },
+        set fillStyle(v) {}, get fillStyle() { return ''; },
+      };
+    },
   };
   return el;
 }
@@ -72,13 +86,26 @@ function el(id) {
   return elements.get(id);
 }
 
-// 页面里实际存在的元素（可从 index.html 解析，这里显式列出关键项）
-const IDS_IN_PAGE = [
-  'accelBadge', 'accelText', 'accelTp', 'modelChip', 'modelFull', 'fwChip', 'fwText',
-  'uptime', 'refreshNote', 'langCtl', 'brand', 'kvNote', 'kvRemain', 'kvBar',
-  'slotRows', 'alertRows', 'logRows', 'followBtn', 'logHistoryBtn', 'alertLogBtn',
-  'badges', 'gpuCards', 'hwPanel', 'selfLine', 'statusPill',
-];
+// 页面里实际存在的元素。
+//
+// **为什么从 index.html 解析而不是手写清单**：手写清单会随页面演进漂移，
+// 而漂移的后果是**静默的** —— 渲染函数写的是真实存在的元素（例如 `#tempSub`、
+// `#stateText`），但桩里没有，`setHTML/setText` 遇到 null 直接 return；
+// 于是"没抛异常"通过了，实际行为却没被验证。这正是本 harness 早期放过了
+// 「阈值被抹空 / 降级横幅永不出现」两代缺陷的原因之一。
+const INDEX_HTML = path.join(STATIC_DIR, 'index.html');
+const IDS_IN_PAGE = fs.existsSync(INDEX_HTML)
+  ? Array.from(
+      new Set(
+        Array.from(fs.readFileSync(INDEX_HTML, 'utf8').matchAll(/\bid="([A-Za-z0-9_-]+)"/g))
+          .map((m) => m[1])
+      )
+    )
+  : [];
+if (!IDS_IN_PAGE.length) {
+  console.error('FRONTEND_RENDER_FAILED: index.html 未解析到任何元素 id');
+  process.exit(1);
+}
 for (const id of IDS_IN_PAGE) el(id);
 
 const document = {
@@ -262,6 +289,80 @@ try {
   check('中文下显示中文框架名', /（llama-server）/.test(zh), zh);
 } catch (e) {
   check('英文渲染不抛异常', false, `${e.name}: ${e.message}`);
+}
+
+console.log('\n=== 6. renderOverview 全量渲染（含 health 降级分支）===');
+// 为什么必须测这一条：
+//   v0.5 的「框架徽标停在识别中」与 v0.6 的「阈值被抹空 / 降级横幅永不出现」
+//   是**同一个根因** —— 页面每 2 秒被 WebSocket 的 snapshot 覆盖，而 REST 与 WS
+//   的载荷字段不一致。上面第 3~5 节只用 renderTopChips + 合成载荷，
+//   **既没走 renderOverview，也没有 health 字段**，所以那两代缺陷都能溜过去。
+//   这里改用"完整载荷"调用 renderOverview，并显式覆盖 health.ready === false
+//   的降级分支 —— 它曾经因引用未声明的 `zh` 抛 ReferenceError 而被静默吞掉。
+const fullPayload = {
+  ...overview,
+  ts: 1791000000,
+  seq: 7,
+  stale: { slots: false, gpu: false },
+  kpi: {
+    decode_tps: 68.2, prefill_tps: 1150.4, mtp_accept: 0.71, draft_mean_len: 2.6,
+    processing: 1, slots_total: 6, generated_total: 123456, generated_total_exact: true,
+    recent: { prefill_tokens: 744 },
+  },
+  kv: { label: { zh: 'KV 池', en: 'KV pool' }, used_pct: 42.5, available: true, total_tokens: 131072 },
+  system: { cpu_pct: 21.0, mem_pct: 38.0, disk_pct: 55.0, load1: 0.4 },
+  runtime: { items: [], draft_n_max: 3, tensor_split: '1,1' },
+  self: { cpu_pct: 1.2, rss_mb: 88.0, threads: 12, ws_clients: 1, uptime_s: 3600 },
+  // 故意用"非默认"阈值（默认是 83/87）—— 这样"阈值真的进了 state"可被观察：
+  // 卡片的副标题会渲染成「告警线 70 °C / 80 °C」。
+  gpus: [{ index: 0, temp_c: 75, util_gpu_pct: 42, power_w: 120.5, fan_pct: 40 }],
+  alerts: [],
+  baseline: { mtp: { value: 0.62, source: 'learned' }, decode: { value: 70.0, source: 'learned' } },
+  thresholds: { kv_warn_pct: 85, kv_crit_pct: 95, gpu_temp_warn_c: 70, gpu_temp_crit_c: 80, vram_warn_pct: 90 },
+  health: { ready: false, reasons: [], reason_codes: ['slots_unavailable'], ws: { metrics_clients: 1 } },
+};
+
+try {
+  const page = loadPage({}, ['zh-CN', 'zh']);
+  let err = null;
+  try {
+    page.sandbox.renderOverview(fullPayload);
+  } catch (e) {
+    err = e;
+  }
+  check('renderOverview 完整载荷未抛异常', err === null,
+    err ? `${err.name}: ${err.message}` : '');
+  // 降级分支的真实效果：`setState('warn', …)` 写 #state 与 #stateText
+  const stateEl = page.els.get('state');
+  const stateText = page.els.get('stateText').textContent;
+  console.log(`  #state.className = ${JSON.stringify(stateEl.className)}, #stateText = ${JSON.stringify(stateText)}`);
+  check('health.ready=false 时显示降级文案',
+    stateText === page.sandbox.I18N.t('state.degraded'), stateText);
+  check('health.ready=false 时状态色为 warn',
+    stateEl.className.includes('warn') && !stateEl.className.includes('ok'), stateEl.className);
+  // 阈值真的进了 state：GPU 卡片副标题用的是传入的非默认阈值 70/80
+  const tempSub = page.els.get('tempSub').textContent;
+  console.log(`  #tempSub = ${JSON.stringify(tempSub)}`);
+  check('阈值来自载荷（非前端硬编码兜底）',
+    tempSub.includes('70') && tempSub.includes('80'), tempSub);
+  // 降级横幅应显示本地化后的原因
+  const banner = page.els.get('banner');
+  console.log(`  #banner.className = ${JSON.stringify(banner.className)}, text = ${JSON.stringify(banner.textContent)}`);
+  check('降级横幅已显示', banner.className.includes('show'), banner.className);
+  check('降级原因已本地化（不含裸代码）',
+    banner.textContent.includes(page.sandbox.I18N.t('health.slots_unavailable')), banner.textContent);
+
+  // 反向：health/thresholds 缺失时也必须优雅降级（旧后端兼容）
+  let err2 = null;
+  try {
+    page.sandbox.renderOverview({ ...fullPayload, health: undefined, thresholds: undefined });
+  } catch (e) {
+    err2 = e;
+  }
+  check('health/thresholds 缺失时不抛异常', err2 === null,
+    err2 ? `${err2.name}: ${err2.message}` : '');
+} catch (e) {
+  check('renderOverview 场景可执行', false, `${e.name}: ${e.message}`);
 }
 
 console.log();

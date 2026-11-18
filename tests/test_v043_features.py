@@ -347,21 +347,23 @@ def test_medata_has_reason_codes(tmp_path):
 
 
 def test_overview_keeps_legacy_and_adds_structured(tmp_path):
-    """接口向后兼容：旧字段保留，新字段增加。"""
+    """接口向后兼容：旧字段保留，新字段增加。
+
+    v0.6.1：``health`` 的键集合改为显式契约 ``app/payload.py::HEALTH_FIELDS``
+    （原先靠扫 ``overview.py`` 的字符串字面量，重构即误报）；这里断言契约内容，
+    比扫源码更强 —— 它同时是 ``health_of()`` 的返回值校验依据。
+    """
+    from app.payload import HEALTH_FIELDS
     from app.routes.overview import thresholds_of
 
-    src = (ROOT / "app" / "routes" / "overview.py").read_text(encoding="utf-8")
-    assert '"reason_codes"' in src
-    assert '"reasons"' in src
+    assert "reason_codes" in HEALTH_FIELDS
+    assert "reasons" in HEALTH_FIELDS
+    #: 路由必须仍然 dump 快照（旧字段由快照保证，不能退回手工拼装）
+    route = (ROOT / "app" / "routes" / "overview.py").read_text(encoding="utf-8")
+    assert "snap.model_dump()" in route
     t = thresholds_of(
-        type(
-            "C",
-            (),
-            {
-                "settings": Settings(),
-                "baselines": type("B", (), {"mtp_baseline": None, "decode_baseline": None})(),
-            },
-        )()
+        Settings(),
+        type("B", (), {"mtp_baseline": None, "decode_baseline": None})(),
     )
     assert "gpu_temp_warn_c" in t
 

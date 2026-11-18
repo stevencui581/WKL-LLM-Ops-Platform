@@ -72,11 +72,17 @@ def test_aggregator_populates_framework_in_snapshot():
 
 
 def test_overview_route_uses_snapshot_not_aggregator_only():
-    """REST 路由也必须从快照取 framework，保证两条路径同源。"""
+    """REST 路由也必须从快照取字段，保证两条路径同源。
+
+    v0.6.1：路由改成 ``snap.model_dump()``，比原先"逐个字段抄一遍"**更强** ——
+    手工拼装正是 v0.5 框架徽标与 v0.6 阈值/健康度两次漂移的共同根因。
+    """
     src = (APP / "routes" / "overview.py").read_text(encoding="utf-8")
-    assert '"framework": snap.framework' in src, (
-        "overview 路由应从 snap.framework 取，而不是单独调 aggregator.framework_dict() "
-        "—— 两条路径不同源会让字段在推送后消失"
+    assert "snap.model_dump()" in src, (
+        "overview 路由必须整体 dump 快照，而不是逐字段拼装 —— 拼装会让新增字段只在 REST 出现，WS 推送后消失"
+    )
+    assert "aggregator.framework_dict()" not in src, (
+        "不应单独调 aggregator.framework_dict()，两条路径必须同源"
     )
 
 

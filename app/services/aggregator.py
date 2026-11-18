@@ -20,6 +20,7 @@ from ..collectors.slots import SlotsCollector
 from ..collectors.system import SystemCollector
 from ..config import Settings
 from ..models import AccelBadge, KpiBlock, MetricSnapshot
+from ..payload import branding_of, health_of, thresholds_of
 from . import accel, gpu_spec, kvmode
 from . import framework as fw
 from .alerts import AlertEngine
@@ -107,11 +108,15 @@ class Aggregator:
         self._seen_events = cur
 
     # ------------------------------------------------------------------
-    async def tick(self, ws_clients: int = 0) -> MetricSnapshot:
-        """一个采集节拍：并发采集 → 归并 → 公式 → 告警。"""
+    async def tick(self, ws_clients: int = 0, ws_stats: dict | None = None) -> MetricSnapshot:
+        """一个采集节拍：并发采集 → 归并 → 公式 → 告警。
+
+        ``ws_stats`` 是 WebSocket Hub 的连接统计（``hub.stats()``），只用于
+        快照里的 ``health.ws``。聚合器**不持有** Hub，因此由采集循环传入。
+        """
         await self._collect_all()
         self._sync_log_events()
-        snap = self._build(ws_clients)
+        snap = self._build(ws_clients, ws_stats)
         snap.alerts = self.alerts.evaluate(snap)
         self.snapshot = snap
         return snap
@@ -165,7 +170,7 @@ class Aggregator:
         )
 
     # ------------------------------------------------------------------
-    def _build(self, ws_clients: int) -> MetricSnapshot:
+    def _build(self, ws_clients: int, ws_stats: dict | None = None) -> MetricSnapshot:
         self.seq += 1
         now = time.time()
         st = self.journal.stats
@@ -237,7 +242,19 @@ class Aggregator:
             #: **必须在这里**，否则 REST 有、WebSocket 没有 ——
             #: 页面每 2 秒被推送覆盖一次，徽标会先对一瞬再退回占位。
             framework=self.framework_dict(),
+            #: v0.6.1：阈值/品牌/健康度也必须在这里（同一个根因，同一条规则）。
+            #: 全部走 ``app/payload.py``，与 ``/api/overview`` 是同一份构造逻辑；
+            #: 若只挂在路由上，页面每 2 秒被推送覆盖后阈值会变成空字典
+            #: （前端退回硬编码 95/85/87/83），降级横幅也会静默消失。
+            thresholds=self._thresholds(),
+            branding=branding_of(self.s),
+            health=health_of(self, ws_stats),
         )
+
+    # ------------------------------------------------------------------
+    def _thresholds(self) -> dict:
+        """阈值块（F5：前端不得硬编码）。"""
+        return thresholds_of(self.s, self.baselines)
 
     # ------------------------------------------------------------------
     def _platform(self) -> str:

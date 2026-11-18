@@ -181,7 +181,7 @@ async def _tick_loop(c: Container) -> None:
             ):
                 last_fw_check = t0
                 await _detect_framework_task(c)
-            snap = await c.aggregator.tick(ws_clients=c.hub.client_count)
+            snap = await c.aggregator.tick(ws_clients=c.hub.client_count, ws_stats=c.hub.stats())
             c.tick_count += 1
             c.last_tick_ts = time.time()
             c.history.add(snap)
