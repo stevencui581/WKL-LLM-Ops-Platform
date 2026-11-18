@@ -13,6 +13,10 @@
   Ubuntu 26.04 + Python 3.14），`python3 -m venv` 会留下一个没有 `pip` 的 venv。原先
   `install.sh` 只看到目录存在就「复用」，随后报 `venv/bin/pip: No such file or directory`。
   现在它会检查 `ensurepip`、复用前验证 `pip`、自动重建残缺环境，并统一用 `python -m pip`。
+- **多框架的指标从未被采集。** 指标开关每拍都被 `/props` 覆盖，而 vLLM/SGLang 没有 `/props`，
+  因此它们的 `/metrics` 从未被读取；同时 series 名被写死成 `llamacpp:*`，`vllm:*` / `sglang:*`
+  全被过滤掉。现在开关由框架能力决定，每个框架在 `SPECS` 里声明「概念 → series」映射，
+  未映射的概念如实显示不可用而不猜测。
 
 ## [v0.6] - 2026-10-04
 

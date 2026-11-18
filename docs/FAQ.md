@@ -113,6 +113,12 @@ FrameworkSpec(
     version_keys=("version",),
     capabilities=frozenset({CAP_MODELS, CAP_HEALTH}),
     metrics_prefix="myfw:",
+    # metric concepts the console understands → this framework's series names.
+    # Anything you leave out is reported as unavailable, never guessed.
+    metrics_map={
+        M_TOKENS_GENERATED: ("myfw:tokens_generated_total",),
+        M_REQUESTS_WAITING: ("myfw:requests_waiting",),
+    },
     note_zh="<Chinese note>",
     note_en="My framework has no /slots; per-slot detail is unavailable",
 )

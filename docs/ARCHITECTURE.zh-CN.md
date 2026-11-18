@@ -65,7 +65,11 @@
 看起来像控制台坏了，实际只是框架不同。
 
 **做法**：启动时按优先级试探候选端点（先专有信号、后通用兜底），得到
-`FrameworkInfo{id, name_zh, name_en, version, capabilities, metrics_prefix}`。
+`FrameworkInfo{id, name_zh, name_en, version, capabilities, metrics_prefix, metrics_map}`。
+
+`metrics_map` 把**语言无关的指标概念**（如 `tokens_generated_total`、`requests_waiting`）
+映射到各框架真实的 Prometheus series 名。采集器只认概念，因此新增框架不需要改动
+`app/collectors/prometheus.py`。
 
 | 框架 | 判定信号 | 版本来源 |
 | --- | --- | --- |

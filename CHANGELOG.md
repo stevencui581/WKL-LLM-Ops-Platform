@@ -14,6 +14,11 @@ This project follows [Semantic Versioning](https://semver.org/) and the
   `pip`. `install.sh` used to see the directory, "reuse" it, and then fail with
   `venv/bin/pip: No such file or directory`. It now checks `ensurepip`, verifies `pip` before
   reusing a venv, recreates incomplete ones, and always calls `python -m pip`.
+- **Multi-framework metrics were never collected.** Metrics enablement was overwritten by the
+  `/props` switch on every tick; vLLM/SGLang have no `/props`, so their `/metrics` was never read.
+  Series names were also hard-coded to `llamacpp:*`, so `vllm:*` / `sglang:*` were filtered out.
+  Enablement now follows framework capability, and each framework declares a concept → series map
+  in `SPECS`; unmapped concepts are reported as unavailable instead of guessed.
 
 ## [v0.6] - 2026-10-04
 

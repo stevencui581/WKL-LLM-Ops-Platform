@@ -38,7 +38,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -61,6 +61,23 @@ ALL_CAPS = frozenset(
     {CAP_PROPS, CAP_SLOTS, CAP_METRICS, CAP_MODELS, CAP_HEALTH, CAP_VERSION, CAP_TAGS, CAP_PS}
 )
 
+# ---------------------------------------------------------------- 指标概念
+#: 跨框架统一的指标**概念**（v0.6.1）。
+#:
+#: 不同框架的 Prometheus series 名字完全不同（``llamacpp:tokens_predicted_total`` /
+#: ``vllm:generation_tokens_total`` / ``sglang:generation_tokens_total``），但语义相同。
+#: 采集器只认概念，具体名字由各框架的 ``metrics_map`` 提供 ——
+#: 这样新增框架时**只加一张映射表**，不用改采集器里的任何判断。
+M_REQUESTS_RUNNING = "requests_running"
+M_REQUESTS_WAITING = "requests_waiting"
+M_TOKENS_GENERATED = "tokens_generated_total"
+M_TOKENS_GENERATED_SECONDS = "tokens_generated_seconds_total"
+M_TOKENS_PROMPT = "tokens_prompt_total"
+M_TOKENS_PROMPT_SECONDS = "tokens_prompt_seconds_total"
+M_TOKENS_PROMPT_CACHED = "tokens_prompt_cached_total"
+M_SPEC_DRAFT_TOKENS = "spec_draft_tokens_total"
+M_SPEC_ACCEPTED_TOKENS = "spec_accepted_tokens_total"
+
 
 # ---------------------------------------------------------------- 规格定义
 @dataclass(frozen=True, slots=True)
@@ -80,6 +97,11 @@ class FrameworkSpec:
     version_is_text: bool = False
     capabilities: frozenset[str] = frozenset()
     metrics_prefix: str = ""
+    #: Prometheus 指标映射：**概念 → 候选 series 名**（按顺序取第一个存在的）。
+    #:
+    #: 为什么是"候选列表"而不是单个名字：这些 series 名会随框架版本变化，
+    #: 列几个已知写法可以跨版本兼容；一个都匹配不上时如实显示不可用（不猜）。
+    metrics_map: Mapping[str, tuple[str, ...]] = field(default_factory=dict, hash=False, repr=False)
     #: 该框架下"槽位/参数"类接口不可用时，界面上应显示的解释
     note_zh: str = ""
     note_en: str = ""
@@ -100,6 +122,17 @@ SPECS: tuple[FrameworkSpec, ...] = (
         version_keys=("build_info", "version"),
         capabilities=frozenset({CAP_PROPS, CAP_SLOTS, CAP_METRICS, CAP_MODELS, CAP_HEALTH}),
         metrics_prefix="llamacpp:",
+        metrics_map={
+            M_REQUESTS_RUNNING: ("llamacpp:requests_processing",),
+            M_REQUESTS_WAITING: ("llamacpp:requests_deferred",),
+            M_TOKENS_GENERATED: ("llamacpp:tokens_predicted_total",),
+            M_TOKENS_GENERATED_SECONDS: ("llamacpp:tokens_predicted_seconds_total",),
+            M_TOKENS_PROMPT: ("llamacpp:prompt_tokens_total",),
+            M_TOKENS_PROMPT_SECONDS: ("llamacpp:prompt_seconds_total",),
+            M_TOKENS_PROMPT_CACHED: ("llamacpp:prompt_tokens_cached_total",),
+            M_SPEC_DRAFT_TOKENS: ("llamacpp:spec_decode_num_draft_tokens_total",),
+            M_SPEC_ACCEPTED_TOKENS: ("llamacpp:spec_decode_num_accepted_tokens_total",),
+        },
         note_zh="llama.cpp 提供 /props 与 /slots，可采集槽位级明细",
         note_en="llama.cpp exposes /props and /slots, so per-slot detail is available",
     ),
@@ -130,6 +163,12 @@ SPECS: tuple[FrameworkSpec, ...] = (
         version_keys=("version",),
         capabilities=frozenset({CAP_MODELS, CAP_METRICS, CAP_HEALTH, CAP_VERSION}),
         metrics_prefix="sglang:",
+        metrics_map={
+            M_REQUESTS_RUNNING: ("sglang:num_running_reqs",),
+            M_REQUESTS_WAITING: ("sglang:num_queue_reqs",),
+            M_TOKENS_GENERATED: ("sglang:generation_tokens_total",),
+            M_TOKENS_PROMPT: ("sglang:prompt_tokens_total",),
+        },
         note_zh="SGLang 不提供 /slots，槽位明细不可用；指标前缀为 sglang:",
         note_en="SGLang has no /slots; metrics use the sglang: prefix",
     ),
@@ -144,10 +183,30 @@ SPECS: tuple[FrameworkSpec, ...] = (
         version_is_text=True,
         capabilities=frozenset({CAP_MODELS, CAP_METRICS, CAP_HEALTH, CAP_VERSION}),
         metrics_prefix="vllm:",
+        metrics_map={
+            M_REQUESTS_RUNNING: ("vllm:num_requests_running",),
+            M_REQUESTS_WAITING: ("vllm:num_requests_waiting",),
+            M_TOKENS_GENERATED: ("vllm:generation_tokens_total",),
+            M_TOKENS_PROMPT: ("vllm:prompt_tokens_total",),
+            # 投机解码：vLLM 早期版本带 ``spec_decode_`` 前缀，新版本改为
+            # ``spec_decode_num_*``；两种都列上，跨版本兼容。
+            M_SPEC_DRAFT_TOKENS: (
+                "vllm:spec_decode_num_draft_tokens_total",
+                "vllm:spec_decode_draft_tokens_total",
+            ),
+            M_SPEC_ACCEPTED_TOKENS: (
+                "vllm:spec_decode_num_accepted_tokens_total",
+                "vllm:spec_decode_accepted_tokens_total",
+            ),
+        },
         note_zh="vLLM 不提供 /slots，槽位明细不可用；指标前缀为 vllm:",
         note_en="vLLM has no /slots; metrics use the vllm: prefix",
     ),
 )
+
+#: 默认指标映射：框架**尚未识别**时按 llama.cpp 试一次（历史唯一验证过的框架）。
+#: 识别成功后会由 ``FrameworkInfo.metrics_map`` 覆盖。
+DEFAULT_METRICS_MAP: Mapping[str, tuple[str, ...]] = next(s.metrics_map for s in SPECS if s.id == "llama.cpp")
 
 #: 通用兜底：只认 OpenAI 兼容接口
 OPENAI_COMPATIBLE = FrameworkSpec(
@@ -188,6 +247,8 @@ class FrameworkInfo:
     build: str = ""  # 额外构建信息（commit 等）
     capabilities: list[str] = field(default_factory=list)
     metrics_prefix: str = ""
+    #: 指标概念 → 候选 series 名（由 SPECS 注入；采集器据此取值）
+    metrics_map: dict[str, tuple[str, ...]] = field(default_factory=dict)
     note_zh: str = ""
     note_en: str = ""
     confidence: str = "unknown"  # exact | fallback | unknown
@@ -206,6 +267,8 @@ class FrameworkInfo:
             "build": self.build,
             "capabilities": sorted(self.capabilities),
             "metrics_prefix": self.metrics_prefix,
+            #: 已映射的指标概念（前端/诊断可用于说明"哪些指标可用"）
+            "metrics_concepts": sorted(self.metrics_map),
             "note": {"zh": self.note_zh, "en": self.note_en},
             "confidence": self.confidence,
             "detected_at": self.detected_at,
@@ -324,6 +387,7 @@ def _apply(info: FrameworkInfo, spec: FrameworkSpec, payloads: dict[str, Any], *
     info.name_en = spec.name_en
     info.capabilities = sorted(spec.capabilities)
     info.metrics_prefix = spec.metrics_prefix
+    info.metrics_map = dict(spec.metrics_map)
     info.note_zh = spec.note_zh
     info.note_en = spec.note_en
     info.confidence = confidence

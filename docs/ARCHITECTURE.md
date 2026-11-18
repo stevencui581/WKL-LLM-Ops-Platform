@@ -73,7 +73,11 @@ it looked like the console was broken, when in fact only the framework was diffe
 
 **The approach**: at startup, candidate endpoints are probed in priority order (proprietary signals
 first, generic fallback last), producing
-`FrameworkInfo{id, name_zh, name_en, version, capabilities, metrics_prefix}`.
+`FrameworkInfo{id, name_zh, name_en, version, capabilities, metrics_prefix, metrics_map}`.
+
+`metrics_map` maps **language-neutral metric concepts** (e.g. `tokens_generated_total`,
+`requests_waiting`) to each framework's actual Prometheus series names. The collector only knows
+concepts, so adding a framework never requires touching `app/collectors/prometheus.py`.
 
 | Framework | Detection signal | Version source |
 | --- | --- | --- |

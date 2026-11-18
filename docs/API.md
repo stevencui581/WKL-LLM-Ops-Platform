@@ -108,6 +108,7 @@ The first page load and the WebSocket pushes use the same aggregate structure.
 | `build` | extra build information (such as the llama.cpp commit) |
 | `capabilities` | available endpoints: `props` / `slots` / `metrics` / `models` / `health` / `version` / `tags` / `ps` |
 | `metrics_prefix` | Prometheus metric prefix (`llamacpp:` / `vllm:` / `sglang:`; empty when there is none) |
+| `metrics_concepts` | Metric concepts actually mapped for this framework (e.g. `tokens_generated_total`); unmapped concepts are reported as unavailable |
 | `confidence` | `exact` (a proprietary signal matched) / `fallback` (OpenAI-compatible only) / `unknown` |
 | `probes` | HTTP status of each probe path, used to diagnose "why was it detected as unknown" |
 

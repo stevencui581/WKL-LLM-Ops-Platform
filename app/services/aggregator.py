@@ -83,7 +83,41 @@ class Aggregator:
             fw.supports(info, fw.CAP_PROPS),
             fw.supports(info, fw.CAP_MODELS),
         )
-        self.metrics.set_endpoint_enabled(fw.supports(info, fw.CAP_METRICS))
+        # v0.6.1：指标名随框架切换（llamacpp: / vllm: / sglang:）。
+        # 是否真的采集由 _collect_all() 每拍结合 /props 决定，这里只同步名字表。
+        self.metrics.set_series_map(info.metrics_map)
+        self.metrics.set_endpoint_enabled(fw.supports(info, fw.CAP_METRICS), self._metrics_disabled_reason())
+
+    # ------------------------------------------------------------------
+    def _metrics_enabled(self) -> bool:
+        """本拍是否应采集 ``/metrics``（框架能力 + ``/props`` 开关共同决定）。
+
+        规则：
+          * 尚未识别框架 → 只看 ``/props``（保持历史行为，llama.cpp 老路径）；
+          * 框架不支持 ``CAP_METRICS`` → 不采集（如 Ollama 没有 Prometheus 接口）；
+          * 框架支持且有 ``/props``（llama.cpp）→ ``/props`` 的 endpoint_metrics 是权威开关；
+          * 框架支持但没有 ``/props``（vLLM / SGLang）→ 默认开启（它们的 /metrics 常开）。
+
+        **这是 v0.6.1 修复的缺陷点**：原先 ``_collect_all()`` 直接用
+        ``self.props.metrics_enabled`` 覆盖了 ``set_framework()`` 里按能力做出的
+        判断，而 vLLM/SGLang 没有 ``/props``，该值恒为 False —— 于是即便框架
+        声明了 ``CAP_METRICS``，``/metrics`` 也永远不会被采集。
+        """
+        info = self.framework
+        if info is None:
+            return self.props.metrics_enabled
+        if not fw.supports(info, fw.CAP_METRICS):
+            return False
+        if fw.supports(info, fw.CAP_PROPS):
+            return self.props.metrics_enabled
+        return True
+
+    def _metrics_disabled_reason(self) -> str | None:
+        """不可采集时给用户的**具体**原因（``None`` = 用采集器默认文案）。"""
+        info = self.framework
+        if info is not None and not fw.supports(info, fw.CAP_METRICS):
+            return f"当前推理框架（{info.id}）不提供 Prometheus 指标接口"
+        return None
 
     def framework_dict(self) -> dict:
         if self.framework is None:
@@ -132,8 +166,13 @@ class Aggregator:
             await self.props.collect()
         # 让采集器跟随 /props 的状态：服务端加上 --metrics 并重启后，
         # 控制台必须自己恢复，而不是一直停在「未启用」（实测踩过这个坑）。
-        self.metrics.set_endpoint_enabled(self.props.metrics_enabled)
-        if self.props.metrics_enabled:
+        #
+        # v0.6.1：这里的开关必须同时考虑**框架能力** —— 原先只用
+        # ``self.props.metrics_enabled`` 覆盖，会在 vLLM/SGLang（没有 /props）
+        # 上把 CAP_METRICS 的判断抹掉，导致 /metrics 永不采集。
+        enabled = self._metrics_enabled()
+        self.metrics.set_endpoint_enabled(enabled, self._metrics_disabled_reason())
+        if enabled:
             await self.metrics.collect()
         if self.slots.total_ctx == 0 and self.props.total_ctx:
             self.slots.total_ctx = self.props.total_ctx
@@ -358,7 +397,7 @@ class Aggregator:
             },
             "metrics": {
                 "ok": self.metrics.available is True,
-                "enabled": self.props.metrics_enabled,
+                "enabled": self._metrics_enabled(),
                 "reason": self.metrics.disabled_reason,
             },
             "collectors": {

@@ -107,6 +107,12 @@ FrameworkSpec(
     version_keys=("version",),
     capabilities=frozenset({CAP_MODELS, CAP_HEALTH}),
     metrics_prefix="myfw:",
+    # 控制台认识的指标概念 → 本框架对应的 series 名。
+    # 没列出的概念会如实显示「不可用」，不会猜。
+    metrics_map={
+        M_TOKENS_GENERATED: ("myfw:tokens_generated_total",),
+        M_REQUESTS_WAITING: ("myfw:requests_waiting",),
+    },
     note_zh="我的框架不提供 /slots，槽位明细不可用",
     note_en="My framework has no /slots; per-slot detail is unavailable",
 )

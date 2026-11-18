@@ -102,6 +102,7 @@
 | `build` | 额外构建信息（如 llama.cpp 的 commit） |
 | `capabilities` | 可用接口清单：`props` / `slots` / `metrics` / `models` / `health` / `version` / `tags` / `ps` |
 | `metrics_prefix` | Prometheus 指标前缀（`llamacpp:` / `vllm:` / `sglang:`；无则空串） |
+| `metrics_concepts` | 该框架实际已映射的指标概念（如 `tokens_generated_total`）；未映射的概念如实显示不可用 |
 | `confidence` | `exact`（命中专有信号）/ `fallback`（仅 OpenAI 兼容）/ `unknown` |
 | `probes` | 各探测路径的 HTTP 状态，用于诊断"为什么识别成 unknown" |
 
