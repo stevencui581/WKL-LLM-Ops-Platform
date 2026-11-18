@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import notify, routes
@@ -227,14 +227,23 @@ async def _detect_framework_task(c: Container) -> None:
     """
     try:
         info = await detect_framework(c.client.probe)
+        prev = c.framework
         c.aggregator.set_framework(info)
+        # v0.6.1：必须把结果存回容器。否则 ``c.framework`` 永远是 None，
+        # 采集循环会每 ``framework_redetect_s`` 秒重探一次（永久重试）——
+        # 表现为日志里每 30 秒一条 "framework:"，且推理服务重启期间会
+        # 反复把已识别的框架覆盖成 unknown。
+        c.framework = info
         if info.confidence == "unknown":
             log.warning(
                 "inference framework not identified yet; will retry (probes=%s)",
                 info.probes,
             )
-        else:
+        elif prev is None or prev.id != info.id or prev.version != info.version:
+            # 只在**变化**时打 info，避免每 30 秒刷同一条
             log.info("framework: %s", fw_summary(info))
+        else:
+            log.debug("framework unchanged: %s", fw_summary(info))
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001 - 识别失败不影响服务
@@ -306,9 +315,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     routes.register(app)
 
     @app.get("/favicon.ico", include_in_schema=False)
-    async def favicon() -> JSONResponse:
-        # 全站零图片资源：不返回图标文件，而是 204
-        return JSONResponse(status_code=204, content=None)
+    async def favicon() -> Response:
+        # 全站零图片资源：不返回图标文件，而是 204。
+        # 注意不能用 JSONResponse(content=None)：它会写出 "null" 正文，
+        # 而 204 必须无正文，starlette 会抛
+        # "RuntimeError: Response content longer than Content-Length"（实测）。
+        return Response(status_code=204)
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):  # pragma: no cover
