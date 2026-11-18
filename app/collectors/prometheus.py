@@ -28,6 +28,7 @@ from ..config import Settings
 from ..services.framework import (
     DEFAULT_METRICS_MAP,
     M_KV_USAGE_PERCENT,
+    M_REQUESTS_RUNNING,
     M_REQUESTS_WAITING,
     M_SPEC_ACCEPTED_TOKENS,
     M_SPEC_DRAFT_TOKENS,
@@ -61,6 +62,11 @@ def parse_prometheus(text: str, names: Collection[str] | None = None) -> dict[st
             continue
         name, _, value = line.partition(" ")
         name = name.strip()
+        # 去掉标签：vLLM 的指标几乎都带标签，例如
+        #   vllm:generation_tokens_total{model_name="qwen"} 34.0
+        # 不剥离就会把整串当成 series 名，导致"接口有数据但一条也匹配不上"
+        # （v0.6.1 实测缺陷）。
+        name = name.split("{", 1)[0]
         if name not in wanted:
             continue
         v = to_num(value.strip())
@@ -229,6 +235,13 @@ class PrometheusCollector:
 
     def requests_deferred(self) -> float | None:
         return self._val(M_REQUESTS_WAITING)
+
+    def requests_running(self) -> float | None:
+        """当前正在处理的请求数（vLLM ``num_requests_running``）。
+
+        llama.cpp 走 /slots，没有这个指标；取不到时返回 None。
+        """
+        return self._val(M_REQUESTS_RUNNING)
 
     def decode_tps(self) -> float | None:
         """必须用计数器推导；``predicted_tokens_seconds`` 空闲时为 0，不可直接告警。

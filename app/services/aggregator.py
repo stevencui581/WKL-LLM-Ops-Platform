@@ -243,13 +243,21 @@ class Aggregator:
 
         mtp = st.mtp_accept if st.mtp_accept is not None else self.metrics.mtp_accept()
 
+        # 处理中请求数：优先 /slots（llama.cpp）；vLLM 没有 /slots 时
+        # 用 /metrics 的 num_requests_running 兜底（v0.6.1）。
+        processing = self.slots.processing_count()
+        if processing == 0:
+            running = self.metrics.requests_running()
+            if running is not None:
+                processing = int(running)
+
         kpi = KpiBlock(
             decode_tps=decode_tps,
             decode_tps_source=decode_src,
             prefill_tps=st.prefill_tps,
             mtp_accept=mtp,
             draft_mean_len=st.draft_mean_len,
-            processing=self.slots.processing_count(),
+            processing=processing,
             slots_total=self.slots.slots_total or int(self.props.props.get("total_slots") or 0),
             deferred=self.metrics.requests_deferred(),
             vram_used_mib=self.gpu.vram_used_mib(),

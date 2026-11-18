@@ -296,6 +296,25 @@ def test_kv_usage_ratio_is_scaled_to_percent(collector):
     assert collector.kv_usage_pct() == pytest.approx(42.0)
 
 
+def test_labeled_series_are_parsed(collector):
+    """vLLM 的指标几乎都带标签，解析时必须剥离 ``{...}``。
+
+    真实缺陷：不剥离时 series 名变成
+    ``vllm:generation_tokens_total{model_name="..."}``，一条也匹配不上，
+    界面表现为"接口有响应但没有已知指标"。
+    """
+    collector.set_series_map(dict(fw.SPECS_BY_ID["vllm"].metrics_map))
+    text = (
+        'vllm:generation_tokens_total{model_name="m"} 34.0\n'
+        'vllm:num_requests_running{model_name="m"} 2.0\n'
+        'vllm:kv_cache_usage_perc{model_name="m"} 12.5\n'
+    )
+    collector.values = parse_prometheus(text, collector._names)
+    assert collector.tokens_predicted_total() == 34.0
+    assert collector.requests_running() == 2.0
+    assert collector.kv_usage_pct() == pytest.approx(12.5)
+
+
 def test_tokens_per_second_from_counter_delta(collector):
     """没有 *_seconds_total 的框架：用计数器增量算 tokens/s。"""
     collector.set_series_map(_detect(VLLM_TABLE).metrics_map)
