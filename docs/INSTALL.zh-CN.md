@@ -92,7 +92,7 @@ sudo usermod -aG systemd-journal "$USER"
 | 依赖 | 版本要求 | 用途 | 缺失后果 |
 | --- | --- | --- | --- |
 | **Python** | **≥ 3.12** | 运行后端 | 无法启动 |
-| **python3-venv** | 与 Python 同版本 | 创建虚拟环境 | 无法隔离依赖 |
+| **python3-venv** | 与 Python 同版本 | 创建虚拟环境 | 无法隔离依赖；缺 `ensurepip` 时 venv 里没有 pip |
 | **pip** | ≥ 22 | 安装依赖 | 无法安装 |
 | **systemd** | 任意较新版本 | 服务状态、开机自启 | 无法读取推理服务状态 |
 | **journalctl** | 随 systemd | 读取服务日志 | 日志面板为空 |
@@ -162,6 +162,10 @@ sudo dnf install -y python3.12 python3.12-pip git util-linux procps-ng curl
 ```bash
 sudo yum install -y python3 python3-pip git util-linux procps-ng curl
 ```
+
+**注意**：`-venv` 包必须与**实际使用的** Python 版本匹配。Ubuntu 26.04 自带 Python 3.14，
+对应包名是 `python3.14-venv`（不是 `python3.12-venv`）。建虚拟环境前先用
+`python3 -m ensurepip --version` 确认。
 
 > **你的发行版仓库里没有 Python 3.12？** 三种办法：
 > 1. `deadsnakes`（Ubuntu）：`sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.12 python3.12-venv`
@@ -301,6 +305,13 @@ python3 -V
 
 **预期输出**：`Python 3.12.x` 或更高。
 
+**很新的发行版可能自带更高的默认版本**（Ubuntu 26.04 就是 Python 3.14）。这本身没问题，
+但必须装与之匹配的 `-venv` 包 —— 建虚拟环境前先确认：
+
+```bash
+python3 -m ensurepip --version    # 必须打印版本号；报 "No module named ensurepip" 说明缺 -venv 包
+```
+
 如果 `python3 -V` 低于 3.12，但机器上装了 `python3.12`：
 
 ```bash
@@ -328,11 +339,20 @@ python3 -m venv venv
 ls -d venv && echo "✅ 虚拟环境已创建"
 ```
 
-**若报错 `No module named venv`**：
+**若报错 `No module named venv`，或建出来的 venv 里没有 pip：**
 
 ```bash
+# 装与你的 Python 版本匹配的 -venv 包（示例为 3.12）
 sudo apt install -y python3.12-venv     # Ubuntu / Debian
 sudo dnf install -y python3.12-pip      # RHEL 系
+```
+
+**装任何东西之前，先确认 venv 里有 pip：**
+
+```bash
+./venv/bin/python -m pip --version      # 必须打印 pip 版本号
+# 如果失败，说明这个 venv 不完整：删掉重建
+rm -rf venv && python3 -m venv venv
 ```
 
 ### 4.4 安装依赖
@@ -583,6 +603,7 @@ rm -rf ~/WKL-LLM-Ops-Platform          # 确认路径无误后再执行
 | --- | --- | --- |
 | `Python 3.12 or newer is required` | Python 版本过低 | 见 [§2.5](#25-补齐缺失的依赖) |
 | `No module named venv` | 缺 python3-venv | `sudo apt install -y python3.12-venv` |
+| `No module named pip` / `venv/bin/pip: No such file or directory` | venv 建出来时没有 pip（缺与 Python 版本匹配的 `python3.X-venv` / `ensurepip`） | 装**对应你 Python 版本**的 `python3.X-venv`，然后 `rm -rf venv && python3 -m venv venv` |
 | `pip install` 超时 | 网络问题 | 加 `-i https://pypi.tuna.tsinghua.edu.cn/simple` |
 | `error: command 'gcc' failed` | 缺编译工具 | `sudo apt install -y build-essential python3-dev` |
 | `Address already in use` | 8081 被占用 | `ss -lntp \| grep 8081` 或改 `LLMCONSOLE_PORT` |

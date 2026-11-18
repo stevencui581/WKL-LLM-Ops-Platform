@@ -7,6 +7,14 @@ This project follows [Semantic Versioning](https://semver.org/) and the
 
 ## [Unreleased]
 
+### Fixed
+
+- **Installer could reuse a broken virtualenv.** Where the matching `python3.X-venv` package is
+  missing (for example Ubuntu 26.04 with Python 3.14), `python3 -m venv` leaves a venv with no
+  `pip`. `install.sh` used to see the directory, "reuse" it, and then fail with
+  `venv/bin/pip: No such file or directory`. It now checks `ensurepip`, verifies `pip` before
+  reusing a venv, recreates incomplete ones, and always calls `python -m pip`.
+
 ## [v0.6] - 2026-10-04
 
 First public release under the project's canonical repository.

@@ -61,7 +61,8 @@ Language: [English](README.md) | 简体中文
 
 ## 🚀 安装与启动
 
-需要带 **systemd** 的 Linux 与 **Python 3.12+**。一行命令完成全部安装：
+需要带 **systemd** 的 Linux、**Python 3.12+**，以及与该 Python 版本匹配的 `python3.X-venv` 包
+（虚拟环境里的 `pip` 由它提供）。一行命令完成全部安装：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/stevencui581/WKL-LLM-Ops-Platform/main/install.sh | bash

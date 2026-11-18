@@ -63,6 +63,39 @@ else
 fi
 
 echo
+echo "=== 7. venv 复用防御 / venv reuse defence ==="
+# 真实事故（v0.6.1）：Ubuntu 26.04 + Python 3.14 没装 python3.14-venv 时，
+# ``python3 -m venv`` 会留下「有 python、没 pip」的残缺目录；install.sh 原先
+# 只判断目录存在就"复用"，随后 ``venv/bin/pip`` 不存在 —— 直接报
+#   venv/bin/pip: No such file or directory → dependency installation failed
+# 这组静态检查保证三道闸不会被改回去。
+if grep -qF 'import venv, ensurepip' install.sh; then
+  chk "依赖检查含 ensurepip（不只 import venv）" 1
+else
+  chk "依赖检查含 ensurepip（不只 import venv）" 0
+fi
+if grep -qF 'bin/python" -m pip --version' install.sh; then
+  chk "复用 venv 前验证 pip 可用" 1
+else
+  chk "复用 venv 前验证 pip 可用" 0
+fi
+if grep -qF 'VPIP' install.sh; then
+  chk "不直接调用 venv/bin/pip（统一 python -m pip）" 0
+else
+  chk "不直接调用 venv/bin/pip（统一 python -m pip）" 1
+fi
+if grep -qF 'python${PY_VER}-venv' install.sh; then
+  chk "缺失提示按实际 Python 版本给包名" 1
+else
+  chk "缺失提示按实际 Python 版本给包名" 0
+fi
+if grep -qF '已有虚拟环境不完整' install.sh; then
+  chk "残缺 venv 会重建而不是复用" 1
+else
+  chk "残缺 venv 会重建而不是复用" 0
+fi
+
+echo
 echo "pass=$pass fail=$fail"
 if [ "$fail" -eq 0 ]; then echo "INSTALL_SCRIPTS_OK"; exit 0; fi
 echo "INSTALL_SCRIPTS_FAILED"; exit 1

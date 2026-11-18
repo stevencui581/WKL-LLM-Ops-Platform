@@ -64,7 +64,8 @@ table in `app/services/framework.py` — there are no `if` branches anywhere els
 
 ## 🚀 Install And Start
 
-Requires Linux with **systemd** and **Python 3.12+**. One command does everything:
+Requires Linux with **systemd**, **Python 3.12+**, and the matching `python3.X-venv` package (it is
+what puts `pip` inside the virtualenv). One command does everything:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/stevencui581/WKL-LLM-Ops-Platform/main/install.sh | bash

@@ -204,18 +204,26 @@ fi
 ok "Python $PY_VER ($(command -v "$PY"))"
 PYBIN="$PY"
 
-# ---- venv 模块 ----
-if ! "$PYBIN" -c 'import venv' >/dev/null 2>&1; then
-  err "$(t "Python venv 模块缺失" "the Python venv module is missing")"
+# ---- venv 模块与 ensurepip ----
+# 只检查 ``import venv`` 是不够的：Debian/Ubuntu 上 venv 模块在、但对应版本的
+# ``python3.X-venv`` 包没装时，``python3 -m venv`` 会**留下一个没有 pip 的半成品
+# 目录**（只有 bin/python），之后 pip install 报 "No module named pip"。实测踩过。
+if ! "$PYBIN" -c 'import venv, ensurepip' >/dev/null 2>&1; then
+  err "$(t "Python venv/ensurepip 不可用" "Python venv/ensurepip is unavailable")"
+  err "$(t "（venv 存在但缺 ensurepip 时，建出来的环境里没有 pip）" \
+          "(without ensurepip the new environment has no pip)")"
   case "$OS_ID" in
     ubuntu|debian|linuxmint|pop)
-      echo "  sudo apt install -y python3.12-venv" ;;
+      echo "  sudo apt install -y python${PY_VER}-venv" ;;
+    rhel|centos|rocky|almalinux|fedora|openeuler|kylin|uos)
+      echo "  sudo dnf install -y python${PY_VER}-pip" ;;
     *)
-      echo "  $(t "请安装对应发行版的 python3-venv 包" "install the python3-venv package for your distribution")" ;;
+      echo "  $(t "请安装对应发行版的 python3-venv 包（版本需为 ${PY_VER}）" \
+              "install the python3-venv package for your distribution (version ${PY_VER})")" ;;
   esac
   die "$(t "安装中止" "installation aborted")"
 fi
-ok "venv ✓"
+ok "venv ✓ (ensurepip ✓)"
 
 # ---- journald 读取权限 ----
 if id -nG 2>/dev/null | tr ' ' '\n' | grep -qE '^(systemd-journal|adm)$'; then
@@ -258,26 +266,59 @@ cd "$INSTALL_DIR" || die "$(t "无法进入" "cannot enter") $INSTALL_DIR"
 info "$(t "4/6 创建虚拟环境并安装依赖" "4/6 Creating virtualenv and installing dependencies")"
 
 VENV_DIR="$INSTALL_DIR/venv"
-if [ -d "$VENV_DIR" ] && [ -x "$VENV_DIR/bin/python" ]; then
+
+# 一个**可用**的 venv = 有 python 且 pip 能跑。
+#
+# 仅判断目录存在是不够的（v0.6.1 实测事故）：缺 python3.X-venv 时
+# ``python3 -m venv`` 会留下「有 python、没 pip」的残缺目录，
+# 复用它会立刻失败：
+#     venv/bin/pip: No such file or directory
+#     → dependency installation failed → installation aborted
+# 所以复用前必须验证 pip；不完整就删掉重建。
+venv_ok() {
+  [ -x "$1/bin/python" ] && "$1/bin/python" -m pip --version >/dev/null 2>&1
+}
+
+create_venv() {
+  "$PYBIN" -m venv "$VENV_DIR" || return 1
+  venv_ok "$VENV_DIR" && return 0
+  # venv 建出来却没有 pip（ensurepip 缺失）：补装一次再判断
+  "$VENV_DIR/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+  venv_ok "$VENV_DIR"
+}
+
+if venv_ok "$VENV_DIR"; then
   ok "$(t "复用已有虚拟环境" "reusing existing virtualenv")"
 else
-  "$PYBIN" -m venv "$VENV_DIR" || die "$(t "创建虚拟环境失败" "failed to create the virtualenv")"
+  if [ -d "$VENV_DIR" ]; then
+    warn "$(t "已有虚拟环境不完整（缺 pip），将重建" \
+            "existing virtualenv is incomplete (no pip); recreating")"
+    rm -rf "$VENV_DIR" || die "$(t "无法删除旧虚拟环境" "cannot remove old virtualenv"): $VENV_DIR"
+  fi
+  create_venv || die "$(t "创建虚拟环境失败：请先安装 python${PY_VER}-venv" \
+                          "failed to create the virtualenv: install python${PY_VER}-venv first")"
   ok "$(t "虚拟环境已创建" "virtualenv created"): $VENV_DIR"
 fi
 
 VPY="$VENV_DIR/bin/python"
-VPIP="$VENV_DIR/bin/pip"
 
 if [ "$SKIP_DEPS" -eq 1 ]; then
   warn "$(t "已跳过依赖安装（--skip-deps）" "dependency install skipped (--skip-deps)")"
 else
   info "$(t "升级 pip" "upgrading pip")"
-  "$VPY" -m pip install --quiet --upgrade pip || warn "$(t "pip 升级失败，继续" "pip upgrade failed; continuing")"
+  # pip 不在目录里时先尝试 ensurepip 自举，再决定是否放弃
+  "$VPY" -m pip install --quiet --upgrade pip \
+    || "$VPY" -m ensurepip --upgrade >/dev/null 2>&1 \
+    || warn "$(t "pip 升级失败，继续" "pip upgrade failed; continuing")"
 
   info "$(t "安装运行依赖（联网，约 1-2 分钟）" "installing runtime dependencies (online, ~1-2 min)")"
-  if ! "$VPIP" install --quiet -e . ; then
+  # 统一用 ``python -m pip``：不依赖 ``venv/bin/pip`` 这个可执行文件存在 ——
+  # venv 不完整时它就不存在，直接调用会得到 "No such file or directory"。
+  if ! "$VPY" -m pip install --quiet -e . ; then
     err "$(t "依赖安装失败" "dependency installation failed")"
     echo "$(t "常见原因与处理：" "common causes and fixes:")"
+    echo "  - $(t "虚拟环境缺 pip：装 python${PY_VER}-venv 后重跑" \
+            "venv has no pip: install python${PY_VER}-venv then re-run")"
     echo "  - $(t "网络问题：配置镜像后重试" "network: configure a mirror and retry")"
     echo "      pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple"
     echo "  - $(t "缺少编译工具" "missing build tools"): sudo apt install -y build-essential python3-dev"
@@ -288,7 +329,7 @@ else
   # 开发依赖为可选，失败不影响使用
   if [ "${WKL_WITH_DEV:-0}" = "1" ]; then
     info "$(t "安装开发依赖" "installing dev dependencies")"
-    "$VPIP" install --quiet -e '.[dev]' || warn "$(t "开发依赖安装失败（不影响使用）" "dev deps failed (non-fatal)")"
+    "$VPY" -m pip install --quiet -e '.[dev]' || warn "$(t "开发依赖安装失败（不影响使用）" "dev deps failed (non-fatal)")"
   fi
 fi
 

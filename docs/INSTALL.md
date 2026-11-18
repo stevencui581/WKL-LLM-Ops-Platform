@@ -94,7 +94,7 @@ sudo usermod -aG systemd-journal "$USER"
 | Dependency | Version | Purpose | If missing |
 | --- | --- | --- | --- |
 | **Python** | **≥ 3.12** | Runs the backend | Cannot start |
-| **python3-venv** | Matching Python | Creates the virtualenv | Cannot isolate dependencies |
+| **python3-venv** | Matching Python | Creates the virtualenv | Cannot isolate dependencies; without `ensurepip` the venv has no pip |
 | **pip** | ≥ 22 | Installs packages | Cannot install |
 | **systemd** | Any recent | Service state, start on boot | Cannot read inference-service state |
 | **journalctl** | Ships with systemd | Reads service logs | Log panel stays empty |
@@ -165,6 +165,10 @@ sudo dnf install -y python3.12 python3.12-pip git util-linux procps-ng curl
 ```bash
 sudo yum install -y python3 python3-pip git util-linux procps-ng curl
 ```
+
+**Note:** the `-venv` package must match the Python version you actually use. Ubuntu 26.04
+ships Python 3.14, so the package name is `python3.14-venv` — not `python3.12-venv`. Verify it
+with `python3 -m ensurepip --version` before creating the virtualenv.
 
 > **Python 3.12 is not in your distribution's repos?** Three options:
 > 1. `deadsnakes` (Ubuntu): `sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.12 python3.12-venv`
@@ -305,6 +309,13 @@ python3 -V
 
 **Expected:** `Python 3.12.x` or newer.
 
+**Very new distributions may ship a newer default** (Ubuntu 26.04 provides Python 3.14). That is
+fine, but the matching `-venv` package must be installed — check it before creating the venv:
+
+```bash
+python3 -m ensurepip --version    # must print a version; "No module named ensurepip" = the -venv package is missing
+```
+
 If `python3 -V` is older but `python3.12` exists:
 
 ```bash
@@ -332,11 +343,20 @@ python3 -m venv venv
 ls -d venv && echo "OK: virtualenv created"
 ```
 
-**If you get `No module named venv`:**
+**If you get `No module named venv`, or the new venv has no pip:**
 
 ```bash
+# Install the -venv package that matches your Python version (example: 3.12)
 sudo apt install -y python3.12-venv     # Ubuntu / Debian
 sudo dnf install -y python3.12-pip      # RHEL family
+```
+
+**Always verify pip inside the venv before installing anything:**
+
+```bash
+./venv/bin/python -m pip --version      # must print a pip version
+# If that fails, the venv is incomplete: delete it and recreate
+rm -rf venv && python3 -m venv venv
 ```
 
 ### 4.4 Install dependencies
@@ -592,6 +612,7 @@ rm -rf ~/WKL-LLM-Ops-Platform          # verify the path before running this
 | --- | --- | --- |
 | `Python 3.12 or newer is required` | Python too old | See [§2.5](#25-installing-what-is-missing) |
 | `No module named venv` | python3-venv missing | `sudo apt install -y python3.12-venv` |
+| `No module named pip` / `venv/bin/pip: No such file or directory` | The venv was created without pip (matching `python3.X-venv` / `ensurepip` missing) | Install `python3.X-venv` for **your** Python version, then `rm -rf venv && python3 -m venv venv` |
 | `pip install` times out | Network | Add `-i https://pypi.org/simple` or a local mirror |
 | `error: command 'gcc' failed` | Build tools missing | `sudo apt install -y build-essential python3-dev` |
 | `Address already in use` | Port 8081 taken | `ss -lntp \| grep 8081` or change `LLMCONSOLE_PORT` |

@@ -7,6 +7,13 @@
 
 ## [未发布]
 
+### 修复
+
+- **安装脚本可能复用残缺的虚拟环境。** 在缺少匹配 `python3.X-venv` 包的发行版上（例如
+  Ubuntu 26.04 + Python 3.14），`python3 -m venv` 会留下一个没有 `pip` 的 venv。原先
+  `install.sh` 只看到目录存在就「复用」，随后报 `venv/bin/pip: No such file or directory`。
+  现在它会检查 `ensurepip`、复用前验证 `pip`、自动重建残缺环境，并统一用 `python -m pip`。
+
 ## [v0.6] - 2026-10-04
 
 项目正式仓库地址确定后的首个公开发布版本。除下面的日志分隔行修复外，控制台行为无变化。
