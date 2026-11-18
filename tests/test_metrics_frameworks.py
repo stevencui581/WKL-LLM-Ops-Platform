@@ -265,6 +265,19 @@ def test_unknown_framework_falls_back_to_props(tmp_path):
     assert c.aggregator._metrics_enabled() is False
 
 
+def test_logs_stale_only_when_follower_stopped(tmp_path):
+    """「日志陈旧」应表示数据源不可用，而不是"最近没有新日志"。
+
+    vLLM 把日志写到文件，journald 里只有启动几行；若按"120 秒无新行"判断，
+    logs 会永久 stale（实测）。
+    """
+    c = _container(tmp_path)
+    c.journal.running = True
+    assert c.aggregator._build(0).stale["logs"] is False
+    c.journal.running = False
+    assert c.aggregator._build(0).stale["logs"] is True
+
+
 # ===========================================================================
 # 4. vLLM 专属：KV 缓存占用 / tokens/s / 「接口通但没指标」
 # ===========================================================================

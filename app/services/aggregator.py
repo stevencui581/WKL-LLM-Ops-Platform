@@ -273,7 +273,10 @@ class Aggregator:
             "sys": self.system.state.stale,
             "config": self.props.state.stale,
             "metrics": self.metrics.available is False or self.metrics.state.stale,
-            "logs": (time.time() - self.journal.last_line_ts) > 120 if self.journal.last_line_ts else True,
+            #: 「陈旧」表示**数据源不可用**，不是"最近没有新日志"。
+            #: 跟随器在跑、只是服务空闲不产生日志时，不该报陈旧
+            #: （vLLM 把日志写到文件、journald 里只有启动几行，实测会永久 stale）。
+            "logs": not self.journal.running,
         }
 
         # v0.4 §7：喂给自动基线学习器（学习期内样本被丢弃）

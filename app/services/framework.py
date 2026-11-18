@@ -182,7 +182,9 @@ SPECS: tuple[FrameworkSpec, ...] = (
         require_paths=("/version", "/v1/models"),
         match=(),
         version_path="/version",
-        version_keys=(),
+        #: 新版 vLLM 的 /version 返回纯文本，但部分构建（含 2080Ti 定制版）
+        #: 返回 ``{"version": "..."}``。两者都要能读 —— 不给 key 时会失败。
+        version_keys=("version",),
         version_is_text=True,
         capabilities=frozenset({CAP_MODELS, CAP_METRICS, CAP_HEALTH, CAP_VERSION}),
         metrics_prefix="vllm:",

@@ -139,6 +139,19 @@ def test_detect_vllm():
     assert not info.supports(fw.CAP_SLOTS)
 
 
+def test_detect_vllm_version_as_json():
+    """部分 vLLM 构建的 /version 返回 JSON 而不是纯文本（实测 2080Ti 定制版）。
+
+    旧实现只按纯文本读，遇到 JSON 就得到空版本号；现在两种都要能读。
+    """
+    table = dict(VLLM)
+    table["/version"] = (True, {"version": "0.2.2.post3"}, None)
+    info = _detect(table)
+    assert info.id == "vllm"
+    assert info.version == "0.2.2.post3"
+    assert info.version_source == "http:/version"
+
+
 def test_detect_sglang():
     info = _detect(SGLANG)
     assert info.id == "sglang"
