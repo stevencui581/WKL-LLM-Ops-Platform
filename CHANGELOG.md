@@ -19,6 +19,11 @@ This project follows [Semantic Versioning](https://semver.org/) and the
   Series names were also hard-coded to `llamacpp:*`, so `vllm:*` / `sglang:*` were filtered out.
   Enablement now follows framework capability, and each framework declares a concept → series map
   in `SPECS`; unmapped concepts are reported as unavailable instead of guessed.
+- **`LLMCONSOLE_LOG_LEVEL` broke startup on a fresh install.** That key is written by `install.sh`,
+  `.env.example`, the example profiles and the systemd unit, but `Settings` had no `log_level`
+  field — with `extra="forbid"`, pydantic-settings rejected it and `import app.main` raised
+  `ValidationError`, so the installer aborted at its self-check step. `log_level` is now a real,
+  validated setting, and a guard keeps documented env keys in sync with `Settings`.
 
 ### Changed
 

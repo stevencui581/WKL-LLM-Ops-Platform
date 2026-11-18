@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     port: int = Field(default=8081, gt=0, lt=65536)
 
     # ------------------------------------------------------------------
+    # 日志（v0.6.1）
+    # ------------------------------------------------------------------
+    #: 日志级别：DEBUG / INFO / WARNING / ERROR / CRITICAL。
+    #:
+    #: **必须是本模型的字段。** ``.env.example``、``examples/*.env`` 与
+    #: ``install.sh`` 都会写 ``LLMCONSOLE_LOG_LEVEL``；而本模型设置了
+    #: ``extra="forbid"``，未声明的带前缀环境变量会被当成拼写错误直接拒绝 ——
+    #: 表现为 ``import app.main`` 抛 ValidationError、一键安装在第 6 步失败。
+    #: v0.6.1 实测事故：全新机器上 ``install.sh`` 生成的 .env 里就有这一行。
+    log_level: str = "INFO"
+
+    # ------------------------------------------------------------------
     # 被监控对象（全部可覆盖，不假定具体部署）
     # ------------------------------------------------------------------
     llama_base_url: str = "http://127.0.0.1:8080"
@@ -236,6 +248,16 @@ class Settings(BaseSettings):
     @classmethod
     def _strip_slash(cls, v: str) -> str:
         return v.rstrip("/")
+
+    @field_validator("log_level")
+    @classmethod
+    def _normalize_log_level(cls, v: str) -> str:
+        """归一为 ``logging`` 认识的级别名；拼错时**明确失败**而不是静默降级。"""
+        lvl = str(v or "INFO").strip().upper()
+        allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if lvl not in allowed:
+            raise ValueError(f"log_level 必须是 {sorted(allowed)} 之一，得到 {v!r}")
+        return lvl
 
     # ------------------------------------------------------------------
     @property

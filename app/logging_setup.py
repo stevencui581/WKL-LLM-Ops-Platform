@@ -22,6 +22,12 @@ class JournaldFormatter(logging.Formatter):
 
 
 def setup_logging(level: str | None = None) -> logging.Logger:
+    """初始化日志。
+
+    ``level`` 由调用方传入（``main.py`` 传 ``Settings.log_level``）；
+    未传入时回退到 ``LLMCONSOLE_LOG_LEVEL`` 环境变量 —— 这样在**加载 Settings
+    之前**就要打日志的场景（脚本、探针）也能工作。
+    """
     lvl = (level or os.environ.get("LLMCONSOLE_LOG_LEVEL") or "INFO").upper()
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JournaldFormatter(FORMAT))

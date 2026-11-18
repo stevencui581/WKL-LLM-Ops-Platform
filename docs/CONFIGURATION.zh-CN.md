@@ -330,6 +330,7 @@ LLMCONSOLE_DEVELOPER=某某公司
 LLMCONSOLE_LOG_LEVEL=DEBUG
 ```
 
-日志级别由环境变量 `LLMCONSOLE_LOG_LEVEL` 控制（见 `app/logging_setup.py`）。
+日志级别由配置项 `log_level` 控制（环境变量 `LLMCONSOLE_LOG_LEVEL`，也可写在 `.env` 里），
+允许值：`DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`；由 `app/logging_setup.py` 生效。
 
 框架识别的探测细节会打到 `DEBUG` 级别，用于排查"为什么识别成了 unknown"。

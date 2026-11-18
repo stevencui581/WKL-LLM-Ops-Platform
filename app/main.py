@@ -250,7 +250,7 @@ def fw_summary(info: FrameworkInfo) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    setup_logging()
+    setup_logging(settings.log_level)
     c = build_container(settings)
     app.state.ctx = c
 

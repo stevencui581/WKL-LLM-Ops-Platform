@@ -338,8 +338,8 @@ LLMCONSOLE_DEVELOPER=Example Corp
 LLMCONSOLE_LOG_LEVEL=DEBUG
 ```
 
-The log level is controlled by the `LLMCONSOLE_LOG_LEVEL` environment variable (see
-`app/logging_setup.py`).
+The log level is the `log_level` setting (`LLMCONSOLE_LOG_LEVEL`, also valid in `.env`). Allowed
+values are `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`; `app/logging_setup.py` applies it.
 
 Framework detection probe details are logged at `DEBUG` level, which is how you investigate
 "why was it detected as unknown".

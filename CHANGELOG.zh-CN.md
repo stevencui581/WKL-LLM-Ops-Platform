@@ -17,6 +17,11 @@
   因此它们的 `/metrics` 从未被读取；同时 series 名被写死成 `llamacpp:*`，`vllm:*` / `sglang:*`
   全被过滤掉。现在开关由框架能力决定，每个框架在 `SPECS` 里声明「概念 → series」映射，
   未映射的概念如实显示不可用而不猜测。
+- **全新安装时 `LLMCONSOLE_LOG_LEVEL` 会导致启动失败。** 这个键由 `install.sh`、
+  `.env.example`、示例配置与 systemd 单元写入，但 `Settings` 里没有 `log_level` 字段 ——
+  在 `extra="forbid"` 下 pydantic-settings 把它当成非法输入，`import app.main` 抛
+  `ValidationError`，安装脚本在自检步骤中止。现在 `log_level` 是真实且带校验的配置项，
+  并新增守卫保证「文档里写的环境变量键」与 `Settings` 字段始终一致。
 
 ### 变更
 
