@@ -45,7 +45,7 @@ dev = [
     # 合入前 CI 就针对那个具体版本验证过，本地即可对齐。
     #
     # 0.17.5 已在纯净基线上验证：ruff check 与 ruff format --check 全部通过。
-    "ruff==0.17.5",
+    "ruff==0.17.6",
     "mypy~=2.4.0",
 ]
 # 文档导出（Markdown → Word）；不带也不影响控制台运行
